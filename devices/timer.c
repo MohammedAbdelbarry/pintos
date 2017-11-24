@@ -7,6 +7,7 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+#include <list.h>
   
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -19,6 +20,8 @@
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
+
+static struct list sleeping_threads;
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
@@ -37,6 +40,7 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+  list_init (&sleeping_threads);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -84,16 +88,30 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
+/* Compares the wakeup time of two threads. Used to create an ordered
+   list of the threads based on time. */
+bool
+wakeup_time_comparator (struct list_elem *first, struct list_elem *second, void *aux)
+{
+  struct thread *first_thread = list_entry (first, struct thread, elem);
+  struct thread *second_thread = list_entry (second, struct thread, elem);
+  return first_thread->wakeup_time < second_thread->wakeup_time;
+}
+
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
 void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
-	
+	enum intr_level old_level; 
+  thread_current ()->wakeup_time = start + ticks;
   ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield();
+  /* Block the thread and add it to the list of sleeping threads. */
+  old_level = intr_disable ();
+  list_insert_ordered(&sleeping_threads, &thread_current ()->elem, wakeup_time_comparator, NULL);
+  thread_block();
+  intr_set_level (old_level);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -170,7 +188,25 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
+  enum intr_level old_level;
   ticks++;
+  /* Check if any threads should wake up and if so unblock them
+     and remove them from the sleeping_threads list */
+  old_level = intr_disable ();
+  while (!list_empty (&sleeping_threads))
+    {
+      struct thread *waking_up_thread = list_entry (list_front (&sleeping_threads), struct thread, elem);
+      if (waking_up_thread->wakeup_time <= ticks)
+        {
+          list_pop_front(&sleeping_threads);
+          thread_unblock(waking_up_thread);
+        }
+      else
+        {
+          break;
+        }
+    }
+  intr_set_level(old_level);
   thread_tick ();
 }
 
