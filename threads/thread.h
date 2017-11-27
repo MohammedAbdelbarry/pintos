@@ -107,6 +107,8 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
   };
 
+bool priority_comparator (struct list_elem *first, struct list_elem *second, void *aux);
+
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
