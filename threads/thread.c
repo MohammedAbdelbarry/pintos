@@ -359,7 +359,8 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
-  list_sort (&ready_list, priority_comparator, NULL);
+  thread_current ()->orig_priority = new_priority;
+  priority_sort_ready_list ();
   thread_yield();
 }
 
@@ -485,7 +486,10 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->orig_priority = priority;
   t->magic = THREAD_MAGIC;
+  t->waiting_lock = NULL;
+  t->wakeup_time = 0;
   list_push_back (&all_list, &t->allelem);
 }
 
@@ -602,3 +606,10 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+
+void
+priority_sort_ready_list (void)
+  {
+    list_sort (&ready_list, priority_comparator, NULL);
+  }
