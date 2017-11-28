@@ -69,7 +69,9 @@ sema_down (struct semaphore *sema)
   while (sema->value == 0) 
     {
       list_insert_ordered (&sema->waiters, &thread_current ()->elem, priority_comparator, NULL);
+      thread_current ()->waiting_sema = sema;
       thread_block ();
+      thread_current ()->waiting_sema = NULL;
     }
   sema->value--;
   intr_set_level (old_level);
@@ -164,19 +166,89 @@ sema_test_helper (void *sema_)
       sema_up (&sema[1]);
     }
 }
-
+// 
+// bool
+// priority_list_comparator (struct list_elem *first, struct list_elem *second, void *aux)
+// {
+//   if (second == NULL)
+//     return first != NULL;
+//   struct priority_elem *first_elem = list_entry (first, struct priority_elem, elem);
+//   struct priority_elem *second_elem = list_entry (second, struct priority_elem, elem);
+//   return first_elem->priority > second_elem->priority;
+// }
+
+int
+get_lock_priority (struct lock *lock)
+{
+  ASSERT (lock != NULL);
+  ASSERT (lock->holder != NULL);
+  if (list_empty (&lock->semaphore.waiters))
+    return PRI_MIN;
+  struct list_elem *front = list_front (&(lock->semaphore.waiters));
+  struct thread *t = list_entry (front, struct thread, elem);
+  ASSERT (t != NULL);
+  return t->priority;
+}
+
+bool
+lock_list_priority_comparator (struct list_elem *first, struct list_elem *second, void *aux)
+{
+  ASSERT (first != NULL);
+  ASSERT (second != NULL);
+  struct lock *first_lock = list_entry (first, struct lock, elem);
+  struct lock *second_lock = list_entry (second, struct lock, elem);
+  return get_lock_priority (first_lock) > get_lock_priority (second_lock);
+}
+
+void
+sort_sema_waiters (struct semaphore *sema)
+{
+  if (sema == NULL)
+    return;
+  list_sort (&sema->waiters, priority_comparator, NULL);
+}
+
+// void
+// list_add_priority_elem_ordered (struct list *list, struct lock *donating_lock, int priority)
+//   {
+//       struct priority_elem *pri_elem;
+//       pri_elem = malloc (sizeof(struct priority_elem));
+//       pri_elem->priority = priority;
+//       pri_elem->donating_lock = donating_lock;
+//       list_insert_ordered (list, &pri_elem->elem, priority_list_comparator, NULL);
+//   }
+
 void
 donate_priority (struct lock *lock)
 {
   if (lock == NULL)
     return;
-
-  if (lock->holder != NULL && thread_current ()->priority > lock->holder->priority)
+  if (lock->holder != NULL)
     {
-      lock->holder->priority = thread_current ()->priority;
-      donate_priority (lock->holder->waiting_lock);
+      if (thread_get_priority () > lock->holder->priority)
+        {
+          // if (lock->holder->donating_lock != NULL)
+          //   {
+          //     list_add_priority_elem_ordered (&lock->holder->donated_priorities,
+          //                                     lock->holder->donating_lock,
+          //                                     lock->holder->priority);
+          //   }
+          lock->holder->priority = thread_get_priority ();
+          //lock->holder->donating_lock = lock;
+          donate_priority (lock->holder->waiting_lock);
+          if (lock->holder->waiting_lock != NULL)
+            sort_sema_waiters (&lock->holder->waiting_lock->semaphore);
+          if (lock->holder->waiting_sema != NULL)
+            sort_sema_waiters (lock->holder->waiting_sema);
+        }
+      // else
+      //   {
+      //     list_add_priority_elem_ordered (&lock->holder->donated_priorities,
+      //                                     lock, thread_get_priority ());
+      //   }
     }
-    return;
+  
+  return;
 }
 
 /* Initializes LOCK.  A lock can be held by at most a single
@@ -222,6 +294,8 @@ lock_acquire (struct lock *lock)
   priority_sort_ready_list ();
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
+  list_insert_ordered (&thread_current ()->acquired_locks, &lock->elem,
+                       lock_list_priority_comparator, NULL);
   thread_current ()->waiting_lock = NULL;
 }
 
@@ -241,9 +315,32 @@ lock_try_acquire (struct lock *lock)
 
   success = sema_try_down (&lock->semaphore);
   if (success)
-    lock->holder = thread_current ();
+    {
+      lock->holder = thread_current ();
+      list_insert_ordered (&thread_current ()->acquired_locks, &lock->elem,
+                           lock_list_priority_comparator, NULL);
+    }
   return success;
 }
+
+// void
+// list_remove_lock (struct list *list, struct lock *lock)
+// {
+//   struct list_elem *elem;
+//   int i = 0;
+//   //printf ("LISTSIZE: %d\n", list_size (list));
+//   for (elem = list_begin (list); elem != list_end (list); elem = list_next (elem))
+//     {
+//       struct priority_elem *cur_elem = list_entry (elem, struct priority_elem, elem);
+//       //printf ("%d PRI: %d LOCK: %p DONATELOCK: %p \n", i++, cur_elem->priority, lock, cur_elem->donating_lock);
+//       if (cur_elem->donating_lock == lock)
+//         {
+//           elem->prev->next = elem->next;
+//           elem->next->prev = elem->prev;
+//         }
+//     }
+//   return;
+// }
 
 /* Releases LOCK, which must be owned by the current thread.
 
@@ -255,9 +352,62 @@ lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
-
+  int b4 = list_size (&thread_current ()->acquired_locks);
+  list_remove (&lock->elem);
+  int after = list_size (&thread_current ()->acquired_locks);
   lock->holder = NULL;
-  thread_current ()->priority = thread_current ()->orig_priority;
+  //list_remove_lock (&thread_current ()->donated_priorities, lock);
+  
+  if (list_empty (&thread_current ()->acquired_locks))
+    {
+      thread_current ()->priority = thread_current ()->orig_priority;
+      //thread_current ()->donating_lock = NULL;
+      
+    }
+  else
+    {
+      struct lock *donating_lock = list_entry (list_front (&thread_current ()->acquired_locks), struct lock, elem);
+      //PANIC ("In Thread: %s and Lock/Donating Lock: %p/%p\nBefore: %d After: %d Priority: %d\nDonaSize: %d",
+       //thread_name (), lock, donating_lock, b4, after,
+        //get_lock_priority (donating_lock), donating_lock->semaphore.value);
+      if (get_lock_priority (donating_lock) > thread_current ()->orig_priority)
+        {
+          //thread_current ()->donating_lock = donating_lock;
+          thread_current ()->priority = get_lock_priority (donating_lock);
+        }
+      else
+        {
+          thread_current ()->priority = thread_current ()->orig_priority;
+          //thread_current ()->donating_lock = NULL;
+        }
+    }
+  priority_sort_ready_list ();
+  // if (lock == thread_current ()->donating_lock)
+  //   {
+  //     if (!list_empty (&thread_current ()->donated_priorities))
+  //       {
+  //         struct priority_elem *pri_elem = list_entry (list_front (&thread_current ()->donated_priorities),
+  //                                                       struct priority_elem, elem);
+          
+  //         if (pri_elem->priority > thread_current ()->orig_priority)
+  //           {
+  //             list_pop_front (&thread_current ()->donated_priorities);
+  //             thread_current ()->priority = pri_elem->priority;
+  //             thread_current ()->donating_lock = pri_elem->donating_lock;
+  //             free (pri_elem);
+  //           }
+  //         else
+  //           {
+  //             thread_current ()->priority = thread_current ()->orig_priority;
+  //             thread_current ()->donating_lock = NULL;    
+  //           }
+  //       }
+  //     else
+  //       {
+  //         thread_current ()->priority = thread_current ()->orig_priority;
+  //         thread_current ()->donating_lock = NULL;
+  //       }
+  //   }  
   sema_up (&lock->semaphore);
 }
 
