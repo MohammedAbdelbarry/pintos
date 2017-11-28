@@ -152,6 +152,8 @@ thread_print_stats (void)
 bool
 priority_comparator (struct list_elem *first, struct list_elem *second, void *aux)
 {
+  if (second == NULL)
+    return first != NULL;
   struct thread *first_thread = list_entry (first, struct thread, elem);
   struct thread *second_thread = list_entry (second, struct thread, elem);
   return first_thread->priority > second_thread->priority;
