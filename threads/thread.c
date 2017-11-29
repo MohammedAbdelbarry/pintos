@@ -259,7 +259,6 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   list_insert_ordered(&ready_list, &t->elem, priority_comparator, NULL); // PS
-  // list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -327,11 +326,9 @@ thread_yield (void)
   enum intr_level old_level;
   
   ASSERT (!intr_context ());
-  // printf("\n\n*********************%s******************\n\n", thread_name());
   old_level = intr_disable ();
   if (cur != idle_thread) 
     list_insert_ordered(&ready_list, &cur->elem, priority_comparator, NULL); // PS
-    // list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -358,7 +355,8 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  if (thread_current ()->priority <= thread_current ()->orig_priority)
+  if (thread_get_priority () == thread_current ()->orig_priority
+      || thread_get_priority () <= new_priority)
     {
       thread_current ()->priority = new_priority;
       priority_sort_ready_list ();
@@ -493,9 +491,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
   t->waiting_lock = NULL;
   t->waiting_sema = NULL;
-  //t->donating_lock = NULL;
   t->wakeup_time = 0;
-  //list_init (&t->donated_priorities);
   list_init (&t->acquired_locks);
   list_push_back (&all_list, &t->allelem);
 }

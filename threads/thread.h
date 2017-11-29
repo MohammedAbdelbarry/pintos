@@ -24,13 +24,6 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
-struct priority_elem
-  {
-    int priority;
-    struct lock* donating_lock;
-    struct list_elem elem;
-  };
-
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -110,8 +103,7 @@ struct thread
 #endif
     struct lock *waiting_lock;
     struct semaphore *waiting_sema;
-    // struct lock *donating_lock;
-        /* Owned by timer.c. */
+    /* Owned by timer.c. */
     int64_t wakeup_time;                /* Number of timer ticks to wake up at if
                                            the thread was sleeping. i.e. the thread
                                            will wake up when timer_ticks() == wakeup_time */
