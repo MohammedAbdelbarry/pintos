@@ -169,6 +169,8 @@ sema_test_helper (void *sema_)
     }
 }
 
+/* Returns the priority of the highest-priority thread waiting
+   on the semaphore sema */
 int
 get_semaphore_priority (struct semaphore *sema)
 {
@@ -180,6 +182,8 @@ get_semaphore_priority (struct semaphore *sema)
   return t->priority;
 }
 
+/* Returns the priority of the highest-priority thread waiting
+   on the lock lock */
 int
 get_lock_priority (struct lock *lock)
 {
@@ -188,6 +192,8 @@ get_lock_priority (struct lock *lock)
   return get_semaphore_priority (&lock->semaphore);
 }
 
+/* Compares two locks and returns true if the priority of the first lock
+   is greater than that of the second lock */
 bool
 lock_list_priority_comparator (struct list_elem *first, struct list_elem *second, void *aux)
 {
@@ -198,6 +204,7 @@ lock_list_priority_comparator (struct list_elem *first, struct list_elem *second
   return get_lock_priority (first_lock) > get_lock_priority (second_lock);
 }
 
+/* Sorts the list of threads waiting on the semaphore sema */
 void
 sort_sema_waiters (struct semaphore *sema)
 {
@@ -206,6 +213,10 @@ sort_sema_waiters (struct semaphore *sema)
   list_sort (&sema->waiters, priority_comparator, NULL);
 }
 
+/* Called when the current thread calling lock_acquire has a higher priority
+   than the current lock holder. Modified the priority of the lock holder to
+   match that of the current thread and if the lock holder is waiting on another lock
+   it donates its priority recursively to the holder of that other lock. */
 void
 donate_priority (struct lock *lock)
 {
@@ -362,6 +373,8 @@ cond_init (struct condition *cond)
   list_init (&cond->waiters);
 }
 
+/* Compares two semaphores and returns true if the priority of the first semaphore
+   is greater than that of the second semaphore */
 bool
 semaphore_priority_comparator (struct list_elem *first, struct list_elem *second, void *aux)
 {

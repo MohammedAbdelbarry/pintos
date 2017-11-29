@@ -88,9 +88,10 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
-    int orig_priority;
+    int orig_priority;                  /* Original priority of the thread before donation */
 
-    // struct list donated_priorities;
+    /* A list of all the acquired locks by the thread.
+      Used for thread donation. */
     struct list acquired_locks;
     struct list_elem allelem;           /* List element for all threads list. */
 
@@ -101,8 +102,14 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
+    /* A pointer to the lock the thread is waiting on
+      or NULL if the thread is not waiting on a lock */
     struct lock *waiting_lock;
+    /* A pointer to the semaphore the thread is waiting on
+      or NULL if the thread is not waiting on a semaphore */
     struct semaphore *waiting_sema;
+    /* A pointer to the condition variable the thread is waiting on
+      or NULL if the thread is not waiting on a condition variable */
     struct condition *waiting_condvar;
     /* Owned by timer.c. */
     int64_t wakeup_time;                /* Number of timer ticks to wake up at if
@@ -113,6 +120,8 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
   };
 
+/* Compares two threads and returns true if the priority of the first thread
+   is greater than the priority of the second thread */
 bool priority_comparator (struct list_elem *first, struct list_elem *second, void *aux);
 
 /* If false (default), use round-robin scheduler.
@@ -150,7 +159,8 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-
+/* Sorts the threads in the ready list in descending
+   order based on priority */
 void priority_sort_ready_list (void);
 
 #endif /* threads/thread.h */
