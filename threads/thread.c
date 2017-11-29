@@ -491,6 +491,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
   t->waiting_lock = NULL;
   t->waiting_sema = NULL;
+  t->waiting_condvar = NULL;
   t->wakeup_time = 0;
   list_init (&t->acquired_locks);
   list_push_back (&all_list, &t->allelem);

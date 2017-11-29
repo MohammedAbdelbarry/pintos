@@ -103,6 +103,7 @@ struct thread
 #endif
     struct lock *waiting_lock;
     struct semaphore *waiting_sema;
+    struct condition *waiting_condvar;
     /* Owned by timer.c. */
     int64_t wakeup_time;                /* Number of timer ticks to wake up at if
                                            the thread was sleeping. i.e. the thread
