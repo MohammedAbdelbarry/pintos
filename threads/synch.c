@@ -325,20 +325,14 @@ lock_release (struct lock *lock)
   lock->holder = NULL;
   
   if (list_empty (&thread_current ()->acquired_locks))
-    {
-      thread_current ()->priority = thread_current ()->orig_priority;      
-    }
+    thread_current ()->priority = thread_current ()->orig_priority;      
   else
     {
       struct lock *donating_lock = list_entry (list_front (&thread_current ()->acquired_locks), struct lock, elem);
       if (get_lock_priority (donating_lock) > thread_current ()->orig_priority)
-        {
-          thread_current ()->priority = get_lock_priority (donating_lock);
-        }
+        thread_current ()->priority = get_lock_priority (donating_lock);
       else
-        {
-          thread_current ()->priority = thread_current ()->orig_priority;
-        }
+        thread_current ()->priority = thread_current ()->orig_priority;
     }
   priority_sort_ready_list ();
   sema_up (&lock->semaphore);

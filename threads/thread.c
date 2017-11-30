@@ -220,8 +220,8 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-  if (thread_current()->priority < priority) 
-    thread_yield();
+  if (thread_current ()->priority < priority) 
+    thread_yield ();
   return tid;
 }
 
@@ -258,7 +258,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered(&ready_list, &t->elem, priority_comparator, NULL); // PS
+  list_insert_ordered (&ready_list, &t->elem, priority_comparator, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -311,7 +311,7 @@ thread_exit (void)
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
-  list_remove (&thread_current()->allelem);
+  list_remove (&thread_current ()->allelem);
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
@@ -328,7 +328,7 @@ thread_yield (void)
   ASSERT (!intr_context ());
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_insert_ordered(&ready_list, &cur->elem, priority_comparator, NULL); // PS
+    list_insert_ordered (&ready_list, &cur->elem, priority_comparator, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -362,7 +362,7 @@ thread_set_priority (int new_priority)
       priority_sort_ready_list ();
     }
   thread_current ()->orig_priority = new_priority;
-  thread_yield();
+  thread_yield ();
 }
 
 /* Returns the current thread's priority. */
@@ -402,7 +402,7 @@ thread_get_recent_cpu (void)
   /* Not yet implemented. */
   return 0;
 }
-
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -617,3 +617,4 @@ priority_sort_ready_list (void)
   {
     list_sort (&ready_list, priority_comparator, NULL);
   }
+  
