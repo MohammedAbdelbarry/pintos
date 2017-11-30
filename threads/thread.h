@@ -156,7 +156,7 @@ int thread_get_priority (void);
 void thread_set_priority (int);
 
 int thread_get_nice (void);
-void thread_set_nice (int);
+void thread_set_nice (int new_nice);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 /* Sorts the threads in the ready list in descending
