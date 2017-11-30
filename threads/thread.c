@@ -220,8 +220,8 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-  if (thread_current()->priority < priority) 
-    thread_yield();
+  if (thread_current ()->priority < priority) 
+    thread_yield ();
   return tid;
 }
 
@@ -258,7 +258,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered(&ready_list, &t->elem, priority_comparator, NULL);
+  list_insert_ordered (&ready_list, &t->elem, priority_comparator, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -328,7 +328,7 @@ thread_yield (void)
   ASSERT (!intr_context ());
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_insert_ordered(&ready_list, &cur->elem, priority_comparator, NULL);
+    list_insert_ordered (&ready_list, &cur->elem, priority_comparator, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -617,3 +617,4 @@ priority_sort_ready_list (void)
   {
     list_sort (&ready_list, priority_comparator, NULL);
   }
+  
