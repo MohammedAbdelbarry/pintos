@@ -468,10 +468,10 @@ thread_calculate_priority (struct thread *t)
 {
   t->real_priority = FIXED_POINT (PRI_MAX) - DIV_INT (t->recent_cpu, 4) - FIXED_POINT (t->nice * 2);
   t->priority = INTEGER (t->real_priority);
-  // sort_sema_waiters (t->waiting_sema);
-  // sort_condvar_waiters(t->waiting_condvar);
-  // if (t->waiting_lock != NULL);
-    // sort_sema_waiters (&t->waiting_lock->semaphore);
+  sort_sema_waiters (t->waiting_sema);
+  sort_condvar_waiters(t->waiting_condvar);
+  if (t->waiting_lock != NULL)
+    sort_sema_waiters (&t->waiting_lock->semaphore);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
