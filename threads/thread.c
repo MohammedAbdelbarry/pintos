@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -37,6 +38,9 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
+/* Scheduler type used in system */
+static enum scheduler scheduler_type;
+
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
   {
@@ -53,6 +57,8 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
+static real load_avg;           /* # of threads ready to run over the past minute */
+static bool first_init_thread;
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -70,6 +76,9 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+static void scheduler_init (void);
+static void thread_calculate_priority (struct thread *);
+static void thread_calculate_recent_cpu (struct thread *);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -93,11 +102,27 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
 
+  /* Set up scheduler used in the system */
+  scheduler_init ();
+  load_avg = FIXED_POINT(0);
+  first_init_thread = true;
+
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
+  initial_thread->recent_cpu = FIXED_POINT(0);
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+  first_init_thread = false;
+}
+
+void
+scheduler_init (void)
+{
+  if (thread_mlfqs) 
+    scheduler_type = BSD_SCHEDULER;
+  else
+    scheduler_type = PRIORITY_SCHEDULER;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -115,6 +140,12 @@ thread_start (void)
 
   /* Wait for the idle thread to initialize idle_thread. */
   sema_down (&idle_started);
+}
+
+void
+thread_calculate_recent_cpu (struct thread *t)
+{
+  t->recent_cpu = MUL(DIV(2 * load_avg, 2 * load_avg + 1), t->recent_cpu) + t->nice;
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -135,7 +166,34 @@ thread_tick (void)
     kernel_ticks++;
 
   /* Enforce preemption. */
-  if (++thread_ticks >= TIME_SLICE)
+  // if (++thread_ticks >= TIME_SLICE)
+    // intr_yield_on_return ();
+
+  if (thread_current () != idle_thread)
+    thread_current ()->recent_cpu = ADD(thread_current ()->recent_cpu, 1);
+    
+  if (timer_ticks () % TIMER_FREQ == 0)
+    {
+      int ready_threads = list_size (&ready_list);
+      if (thread_current () != idle_thread)
+        ready_threads++;
+      load_avg = MUL(load_avg, DIV(59, 60)) + DIV(ready_threads, 60);
+      
+      // enum intr_level old_level = intr_disable ();
+      thread_foreach (&thread_calculate_recent_cpu, NULL);
+      // intr_set_level (old_level);
+    }
+  
+  if (timer_ticks () % 4 == 0)
+    {
+      // enum intr_level old_level = intr_disable ();
+      thread_foreach (&thread_calculate_priority, NULL);
+      // intr_set_level (old_level);
+    }
+
+  /* Preempt running thread if its time slice has passed, or a higher priority thread is ready */
+  if (++thread_ticks >= TIME_SLICE || (!list_empty (&ready_list) && 
+            thread_current ()->priority < list_entry (list_front (&ready_list), struct thread, elem)->priority))
     intr_yield_on_return ();
 }
 
@@ -359,6 +417,7 @@ thread_set_priority (int new_priority)
       || thread_get_priority () <= new_priority)
     {
       thread_current ()->priority = new_priority;
+      thread_current ()->real_priority = FIXED_POINT(new_priority);
       priority_sort_ready_list ();
     }
   thread_current ()->orig_priority = new_priority;
@@ -374,33 +433,39 @@ thread_get_priority (void)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int new_nice) 
 {
-  /* Not yet implemented. */
+  thread_current ()->nice = new_nice;
+  thread_calculate_priority (thread_current ()); // TO BE IMPLEMENTED
+  if (thread_get_priority () < list_entry (list_front (&ready_list), struct thread, elem)->priority) 
+    thread_yield();
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current ()->nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return ROUND (MUL (load_avg, 100)); // Need to be rounded not truncated.
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return ROUND (MUL (thread_current ()->recent_cpu, 100));
+}
+
+void
+thread_calculate_priority (struct thread *t)
+{
+  t->real_priority = PRI_MAX - DIV (t->recent_cpu, 4) - MUL (t->nice, 2);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -486,13 +551,28 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
-  t->orig_priority = priority;
+  if (scheduler_type == BSD_SCHEDULER)
+    {
+      thread_calculate_priority (t);
+      t->priority = INTEGER(t->real_priority);
+      t->orig_priority = INTEGER(t->real_priority);
+    }
+  else
+    {
+      t->priority = priority;
+      t->real_priority = FIXED_POINT(priority);
+      t->orig_priority = priority;
+    }
   t->magic = THREAD_MAGIC;
   t->waiting_lock = NULL;
   t->waiting_sema = NULL;
   t->waiting_condvar = NULL;
   t->wakeup_time = 0;
+  t->nice = FIXED_POINT(0);
+  if (first_init_thread)
+    t->recent_cpu = 0; 
+  else
+    t->recent_cpu = thread_current ()->recent_cpu;
   list_init (&t->acquired_locks);
   list_push_back (&all_list, &t->allelem);
 }

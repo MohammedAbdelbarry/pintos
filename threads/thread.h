@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include <fixed_point.h>
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -88,7 +89,10 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
+    real real_priority;                 /* Fixed point representation of priority */
     int orig_priority;                  /* Original priority of the thread before donation */
+    real nice;                          /* Nice value used in calculating BSD Scheduler priority */
+    real recent_cpu;                    /* Recent cpu usage estimation used in calculating BSD Scheduler priority */
 
     /* A list of all the acquired locks by the thread.
       Used for thread donation. */
@@ -128,6 +132,11 @@ bool priority_comparator (struct list_elem *first, struct list_elem *second, voi
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
+enum scheduler 
+  {
+    PRIORITY_SCHEDULER,
+    BSD_SCHEDULER
+  };
 
 void thread_init (void);
 void thread_start (void);
