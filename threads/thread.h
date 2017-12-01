@@ -91,7 +91,7 @@ struct thread
     int priority;                       /* Priority. */
     real real_priority;                 /* Fixed point representation of priority */
     int orig_priority;                  /* Original priority of the thread before donation */
-    real nice;                          /* Nice value used in calculating BSD Scheduler priority */
+    int nice;                           /* Nice value used in calculating BSD Scheduler priority */
     real recent_cpu;                    /* Recent cpu usage estimation used in calculating BSD Scheduler priority */
 
     /* A list of all the acquired locks by the thread.

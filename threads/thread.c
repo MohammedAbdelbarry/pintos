@@ -144,7 +144,7 @@ thread_start (void)
 void
 thread_calculate_recent_cpu (struct thread *t)
 {
-  t->recent_cpu = MUL(DIV(2 * load_avg, 2 * load_avg + 1), t->recent_cpu) + t->nice;
+  t->recent_cpu = MUL(DIV(2 * load_avg, 2 * load_avg + 1), t->recent_cpu) + FIXED_POINT(t->nice);
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -167,8 +167,9 @@ thread_tick (void)
   if (thread_mlfqs)
     {
       if (thread_current () != idle_thread)
-        thread_current ()->recent_cpu = ADD(thread_current ()->recent_cpu, 1);
+        thread_current ()->recent_cpu = thread_current ()->recent_cpu + 1;
       
+      // One second has passed.
       if (timer_ticks () % TIMER_FREQ == 0)
       {
         int ready_threads = list_size (&ready_list);
@@ -465,7 +466,7 @@ thread_get_recent_cpu (void)
 void
 thread_calculate_priority (struct thread *t)
 {
-  t->real_priority = PRI_MAX - DIV_INT (t->recent_cpu, 4) - MUL_INT (t->nice, 2);
+  t->real_priority = FIXED_POINT (PRI_MAX) - DIV_INT (t->recent_cpu, 4) - FIXED_POINT (t->nice * 2);
   t->priority = INTEGER (t->real_priority);
 }
 
@@ -568,11 +569,16 @@ init_thread (struct thread *t, const char *name, int priority)
   t->waiting_sema = NULL;
   t->waiting_condvar = NULL;
   t->wakeup_time = 0;
-  t->nice = FIXED_POINT(0);
   if (first_init_thread)
-    t->recent_cpu = 0; 
+    {
+      t->recent_cpu = FIXED_POINT(0);
+      t->nice = 0;
+    }
   else
-    t->recent_cpu = thread_current ()->recent_cpu;
+    {
+      t->recent_cpu = thread_current ()->recent_cpu;
+      t->nice = thread_current ()->nice;
+    }  
   list_init (&t->acquired_locks);
   list_push_back (&all_list, &t->allelem);
 }
