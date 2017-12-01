@@ -213,6 +213,15 @@ sort_sema_waiters (struct semaphore *sema)
   list_sort (&sema->waiters, priority_comparator, NULL);
 }
 
+/* Sorts the list of threads waiting on the conditional variable condvar */
+void
+sort_condvar_waiters (struct condition *condvar)
+{
+  if (condvar == NULL)
+    return;
+  list_sort (&condvar->waiters, semaphore_priority_comparator, NULL);
+}
+
 /* Called when the current thread calling lock_acquire has a higher priority
    than the current lock holder. Modified the priority of the lock holder to
    match that of the current thread and if the lock holder is waiting on another lock
@@ -233,7 +242,7 @@ donate_priority (struct lock *lock)
           if (lock->holder->waiting_sema != NULL)
             sort_sema_waiters (lock->holder->waiting_sema);
           if (lock->holder->waiting_condvar != NULL)
-            list_sort (&lock->holder->waiting_condvar->waiters, semaphore_priority_comparator, NULL);
+            sort_condvar_waiters (lock->holder->waiting_condvar);
         }
     }
   return;
@@ -278,11 +287,15 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
   thread_current ()->waiting_lock = lock;
-  donate_priority (lock);
-  priority_sort_ready_list ();
+  if (!thread_mlfqs)
+    {
+      donate_priority (lock);
+      priority_sort_ready_list (); 
+    }
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
-  list_insert_ordered (&thread_current ()->acquired_locks, &lock->elem,
+  if (!thread_mlfqs)
+    list_insert_ordered (&thread_current ()->acquired_locks, &lock->elem,
                        lock_list_priority_comparator, NULL);
   thread_current ()->waiting_lock = NULL;
 }
@@ -321,20 +334,23 @@ lock_release (struct lock *lock)
 {
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
-  list_remove (&lock->elem);
-  lock->holder = NULL;
   
-  if (list_empty (&thread_current ()->acquired_locks))
-    thread_current ()->priority = thread_current ()->orig_priority;      
-  else
+  lock->holder = NULL;
+  if (!thread_mlfqs)
     {
-      struct lock *donating_lock = list_entry (list_front (&thread_current ()->acquired_locks), struct lock, elem);
-      if (get_lock_priority (donating_lock) > thread_current ()->orig_priority)
-        thread_current ()->priority = get_lock_priority (donating_lock);
-      else
+      list_remove (&lock->elem);
+      if (list_empty (&thread_current ()->acquired_locks))
         thread_current ()->priority = thread_current ()->orig_priority;
+      else
+        {
+          struct lock *donating_lock = list_entry (list_front (&thread_current ()->acquired_locks), struct lock, elem);
+          if (get_lock_priority (donating_lock) > thread_current ()->orig_priority)
+            thread_current ()->priority = get_lock_priority (donating_lock);
+          else
+            thread_current ()->priority = thread_current ()->orig_priority;
+        }
+      priority_sort_ready_list ();
     }
-  priority_sort_ready_list ();
   sema_up (&lock->semaphore);
 }
 
@@ -348,7 +364,7 @@ lock_held_by_current_thread (const struct lock *lock)
 
   return lock->holder == thread_current ();
 }
-
+
 /* One semaphore in a list. */
 struct semaphore_elem 
   {
