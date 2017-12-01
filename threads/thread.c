@@ -109,7 +109,6 @@ thread_init (void)
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
-  initial_thread->recent_cpu = FIXED_POINT(0);
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
@@ -164,12 +163,12 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
-
-  if (scheduler_type == BSD_SCHEDULER)
+  
+  if (thread_mlfqs)
     {
       if (thread_current () != idle_thread)
         thread_current ()->recent_cpu = ADD(thread_current ()->recent_cpu, 1);
-    
+      
       if (timer_ticks () % TIMER_FREQ == 0)
       {
         int ready_threads = list_size (&ready_list);
@@ -453,20 +452,20 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  return ROUND (MUL (load_avg, 100));
+  return ROUND (MUL_INT (load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  return ROUND (MUL (thread_current ()->recent_cpu, 100));
+  return ROUND (MUL_INT (thread_current ()->recent_cpu, 100));
 }
 
 void
 thread_calculate_priority (struct thread *t)
 {
-  t->real_priority = PRI_MAX - DIV (t->recent_cpu, 4) - MUL (t->nice, 2);
+  t->real_priority = PRI_MAX - DIV_INT (t->recent_cpu, 4) - MUL_INT (t->nice, 2);
   t->priority = INTEGER (t->real_priority);
 }
 
