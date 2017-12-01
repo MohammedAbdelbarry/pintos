@@ -144,7 +144,7 @@ thread_start (void)
 void
 thread_calculate_recent_cpu (struct thread *t)
 {
-  t->recent_cpu = MUL(DIV(2 * load_avg, 2 * load_avg + 1), t->recent_cpu) + FIXED_POINT(t->nice);
+  t->recent_cpu = ADD_INT (MUL (DIV (MUL_INT(load_avg, 2), ADD_INT (MUL_INT (load_avg, 2), 1)), t->recent_cpu), t->nice);
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -167,7 +167,7 @@ thread_tick (void)
   if (thread_mlfqs)
     {
       if (thread_current () != idle_thread)
-        thread_current ()->recent_cpu = thread_current ()->recent_cpu + 1;
+        thread_current ()->recent_cpu = ADD_INT(thread_current ()->recent_cpu, 1);
       
       // One second has passed.
       if (timer_ticks () % TIMER_FREQ == 0)
