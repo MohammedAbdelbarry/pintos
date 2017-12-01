@@ -39,7 +39,7 @@ static struct thread *initial_thread;
 static struct lock tid_lock;
 
 /* Scheduler type used in system */
-static enum scheduler scheduler_type;
+enum scheduler scheduler_type;
 
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
@@ -165,36 +165,36 @@ thread_tick (void)
   else
     kernel_ticks++;
 
-  /* Enforce preemption. */
-  // if (++thread_ticks >= TIME_SLICE)
-    // intr_yield_on_return ();
-
-  if (thread_current () != idle_thread)
-    thread_current ()->recent_cpu = ADD(thread_current ()->recent_cpu, 1);
-    
-  if (timer_ticks () % TIMER_FREQ == 0)
+  if (scheduler_type == BSD_SCHEDULER)
     {
-      int ready_threads = list_size (&ready_list);
       if (thread_current () != idle_thread)
-        ready_threads++;
-      load_avg = MUL(load_avg, DIV(59, 60)) + DIV(ready_threads, 60);
-      
-      // enum intr_level old_level = intr_disable ();
-      thread_foreach (&thread_calculate_recent_cpu, NULL);
-      // intr_set_level (old_level);
-    }
+        thread_current ()->recent_cpu = ADD(thread_current ()->recent_cpu, 1);
+    
+      if (timer_ticks () % TIMER_FREQ == 0)
+      {
+        int ready_threads = list_size (&ready_list);
+        if (thread_current () != idle_thread)
+          ready_threads++;
+        load_avg = MUL(load_avg, DIV(59, 60)) + DIV(ready_threads, 60);
+        thread_foreach (&thread_calculate_recent_cpu, NULL);
+      }
   
-  if (timer_ticks () % 4 == 0)
-    {
-      // enum intr_level old_level = intr_disable ();
-      thread_foreach (&thread_calculate_priority, NULL);
-      // intr_set_level (old_level);
+      if (timer_ticks () % 4 == 0)
+      {
+        thread_foreach (&thread_calculate_priority, NULL);
+        priority_sort_ready_list ();
+        // Sort blocked lists too
+      }
+      /* Preempt running thread if its time slice has passed, or a higher priority thread is ready */
+      if (++thread_ticks >= TIME_SLICE || (!list_empty (&ready_list) && 
+          thread_current ()->priority < list_entry (list_front (&ready_list), struct thread, elem)->priority))
+      intr_yield_on_return ();
     }
-
-  /* Preempt running thread if its time slice has passed, or a higher priority thread is ready */
-  if (++thread_ticks >= TIME_SLICE || (!list_empty (&ready_list) && 
-            thread_current ()->priority < list_entry (list_front (&ready_list), struct thread, elem)->priority))
-    intr_yield_on_return ();
+  else
+    {
+      if (++thread_ticks >= TIME_SLICE)
+        intr_yield_on_return ();
+    }
 }
 
 /* Prints thread statistics. */
@@ -436,8 +436,9 @@ void
 thread_set_nice (int new_nice) 
 {
   thread_current ()->nice = new_nice;
-  thread_calculate_priority (thread_current ()); // TO BE IMPLEMENTED
-  if (thread_get_priority () < list_entry (list_front (&ready_list), struct thread, elem)->priority) 
+  thread_calculate_priority (thread_current ());
+  if (!list_empty (&ready_list) && 
+        thread_get_priority () < list_entry (list_front (&ready_list), struct thread, elem)->priority) 
     thread_yield();
 }
 
@@ -452,7 +453,7 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  return ROUND (MUL (load_avg, 100)); // Need to be rounded not truncated.
+  return ROUND (MUL (load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -466,6 +467,7 @@ void
 thread_calculate_priority (struct thread *t)
 {
   t->real_priority = PRI_MAX - DIV (t->recent_cpu, 4) - MUL (t->nice, 2);
+  t->priority = INTEGER (t->real_priority);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -554,7 +556,6 @@ init_thread (struct thread *t, const char *name, int priority)
   if (scheduler_type == BSD_SCHEDULER)
     {
       thread_calculate_priority (t);
-      t->priority = INTEGER(t->real_priority);
       t->orig_priority = INTEGER(t->real_priority);
     }
   else
