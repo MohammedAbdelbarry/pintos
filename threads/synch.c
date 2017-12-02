@@ -272,9 +272,9 @@ lock_init (struct lock *lock)
   sema_init (&lock->semaphore, 1);
 }
 
-static void lock_acquire_ps (struct lock *lock);
+static void lock_acquire_ps (struct lock *);
 
-static void lock_acquire_mlfqs (struct lock *lock);
+static void lock_acquire_mlfqs (struct lock *);
 
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current

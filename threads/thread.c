@@ -80,8 +80,8 @@ static void thread_calculate_priority (struct thread *);
 static void thread_calculate_recent_cpu (struct thread *);
 static void thread_tick_ps (void);
 static void thread_tick_mlfqs (void);
-static void init_thread_ps (struct thread *t, int priority);
-static void init_thread_mlfqs (struct thread *t);
+static void init_thread_ps (struct thread *, int);
+static void init_thread_mlfqs (struct thread *);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -699,8 +699,7 @@ thread_tick_mlfqs (void)
   if (timer_ticks () % 4 == 0)
     {
       thread_foreach (&thread_calculate_priority, NULL);
-      priority_sort_ready_list ();
-      
+      priority_sort_ready_list ();  
     }
     /* Preempt running thread if its time slice has passed, or a higher priority thread is ready */
   if (++thread_ticks >= TIME_SLICE || (!list_empty (&ready_list) && 
