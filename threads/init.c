@@ -257,7 +257,7 @@ parse_options (char **argv)
       else if (!strcmp (name, "-mlfqs"))
         {
           thread_mlfqs = true;
-          scheduler = MLFQS;
+          scheduler = MLFQ_SCHEDULER;
         }
         
 #ifdef USERPROG

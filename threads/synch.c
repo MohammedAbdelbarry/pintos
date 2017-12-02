@@ -293,7 +293,7 @@ lock_acquire (struct lock *lock)
   thread_current ()->waiting_lock = lock;
   switch (scheduler)
     {
-      case MLFQS:
+      case MLFQ_SCHEDULER:
         lock_acquire_mlfqs (lock);
         break;
       default:
@@ -382,7 +382,7 @@ lock_release (struct lock *lock)
   lock->holder = NULL;
   switch (scheduler)
     {
-      case MLFQS:
+      case MLFQ_SCHEDULER:
         break;
       default:
         lock_release_ps (lock);

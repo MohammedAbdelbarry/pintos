@@ -157,7 +157,7 @@ thread_tick (void)
     kernel_ticks++;
   switch (scheduler)
     {
-      case MLFQS:
+      case MLFQ_SCHEDULER:
         thread_tick_mlfqs ();
         break;
       default:
@@ -527,7 +527,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   switch (scheduler)
     {
-      case MLFQS:
+      case MLFQ_SCHEDULER:
         init_thread_mlfqs (t);
         break;
       default:

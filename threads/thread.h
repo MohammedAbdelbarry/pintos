@@ -131,8 +131,8 @@ bool priority_comparator (struct list_elem *first, struct list_elem *second, voi
 /* Types of supported schedulers. */
 enum scheduler_type
   {
-    PS,     /* Priority Scheduler, is the default scheduler. */
-    MLFQS   /* Multi-level Feedback Queue Scheduler, like the 4.4BSD Scheduler. */
+    PRIORITY_SCHEDULER,     /* Priority Scheduler, is the default scheduler. */
+    MLFQ_SCHEDULER   /* Multi-level Feedback Queue Scheduler, like the 4.4BSD Scheduler. */
   };
 
 /* If false (default), use round-robin scheduler.
