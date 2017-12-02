@@ -128,15 +128,20 @@ struct thread
    is greater than the priority of the second thread */
 bool priority_comparator (struct list_elem *first, struct list_elem *second, void *aux);
 
+/* Types of supported schedulers. */
+enum scheduler_type
+  {
+    PS,     /* Priority Scheduler, is the default scheduler. */
+    MLFQS   /* Multi-level Feedback Queue Scheduler, like the 4.4BSD Scheduler. */
+  };
+
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
-enum scheduler 
-  {
-    PRIORITY_SCHEDULER,
-    BSD_SCHEDULER
-  };
+
+/* Scheduler type. */
+extern enum scheduler_type scheduler;
 
 void thread_init (void);
 void thread_start (void);

@@ -272,6 +272,10 @@ lock_init (struct lock *lock)
   sema_init (&lock->semaphore, 1);
 }
 
+static void lock_acquire_ps (struct lock *lock);
+
+static void lock_acquire_mlfqs (struct lock *lock);
+
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
    thread.
@@ -287,17 +291,40 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
   thread_current ()->waiting_lock = lock;
-  if (!thread_mlfqs)
+  switch (scheduler)
     {
-      donate_priority (lock);
-      priority_sort_ready_list (); 
+      case MLFQS:
+        lock_acquire_mlfqs (lock);
+        break;
+      default:
+        lock_acquire_ps (lock);
     }
+  thread_current ()->waiting_lock = NULL;
+}
+
+/* Handles the priority donation with the Priority Scheduler(PS)
+   as well as checking for the availability of the required lock 
+   if it is available it acquires it else it waits for it 
+   till it becomes available. */
+static void
+lock_acquire_ps (struct lock *lock)
+{
+  donate_priority (lock);
+  priority_sort_ready_list ();
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
-  if (!thread_mlfqs)
-    list_insert_ordered (&thread_current ()->acquired_locks, &lock->elem,
+  list_insert_ordered (&thread_current ()->acquired_locks, &lock->elem,
                        lock_list_priority_comparator, NULL);
-  thread_current ()->waiting_lock = NULL;
+}
+
+/* Checks for the availability of the required lock if it is available 
+   it acquires it else it waits for it till it becomes available with 
+   the Multi-level Feedback Queue Scheduler(MLFQS). */
+static void
+lock_acquire_mlfqs (struct lock *lock)
+{
+  sema_down (&lock->semaphore);
+  lock->holder = thread_current ();
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -324,6 +351,23 @@ lock_try_acquire (struct lock *lock)
   return success;
 }
 
+static void
+lock_release_ps (struct lock *lock)
+{
+  list_remove (&lock->elem);
+  if (list_empty (&thread_current ()->acquired_locks))
+    thread_current ()->priority = thread_current ()->orig_priority;
+  else
+    {
+      struct lock *donating_lock = list_entry (list_front (&thread_current ()->acquired_locks), struct lock, elem);
+      if (get_lock_priority (donating_lock) > thread_current ()->orig_priority)
+        thread_current ()->priority = get_lock_priority (donating_lock);
+      else
+        thread_current ()->priority = thread_current ()->orig_priority;
+    }
+  priority_sort_ready_list ();
+}
+
 /* Releases LOCK, which must be owned by the current thread.
 
    An interrupt handler cannot acquire a lock, so it does not
@@ -336,20 +380,12 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
   
   lock->holder = NULL;
-  if (!thread_mlfqs)
+  switch (scheduler)
     {
-      list_remove (&lock->elem);
-      if (list_empty (&thread_current ()->acquired_locks))
-        thread_current ()->priority = thread_current ()->orig_priority;
-      else
-        {
-          struct lock *donating_lock = list_entry (list_front (&thread_current ()->acquired_locks), struct lock, elem);
-          if (get_lock_priority (donating_lock) > thread_current ()->orig_priority)
-            thread_current ()->priority = get_lock_priority (donating_lock);
-          else
-            thread_current ()->priority = thread_current ()->orig_priority;
-        }
-      priority_sort_ready_list ();
+      case MLFQS:
+        break;
+      default:
+        lock_release_ps (lock);
     }
   sema_up (&lock->semaphore);
 }

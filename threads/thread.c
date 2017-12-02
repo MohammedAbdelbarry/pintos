@@ -38,9 +38,6 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
-/* Scheduler type used in system */
-enum scheduler scheduler_type;
-
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
   {
@@ -65,6 +62,9 @@ static bool first_init_thread;
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+/* Scheduler type. */
+enum scheduler_type scheduler;
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -76,9 +76,12 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-static void scheduler_init (void);
 static void thread_calculate_priority (struct thread *);
 static void thread_calculate_recent_cpu (struct thread *);
+static void thread_tick_ps (void);
+static void thread_tick_mlfqs (void);
+static void init_thread_ps (struct thread *t, int priority);
+static void init_thread_mlfqs (struct thread *t);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -102,8 +105,6 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
 
-  /* Set up scheduler used in the system */
-  scheduler_init ();
   load_avg = FIXED_POINT(0);
   first_init_thread = true;
 
@@ -113,15 +114,6 @@ thread_init (void)
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
   first_init_thread = false;
-}
-
-void
-scheduler_init (void)
-{
-  if (thread_mlfqs) 
-    scheduler_type = BSD_SCHEDULER;
-  else
-    scheduler_type = PRIORITY_SCHEDULER;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -163,37 +155,13 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
-  
-  if (thread_mlfqs)
+  switch (scheduler)
     {
-      if (thread_current () != idle_thread)
-        thread_current ()->recent_cpu = ADD_INT(thread_current ()->recent_cpu, 1);
-      
-      // One second has passed.
-      if (timer_ticks () % TIMER_FREQ == 0)
-      {
-        int ready_threads = list_size (&ready_list);
-        if (thread_current () != idle_thread)
-          ready_threads++;
-        load_avg = MUL(load_avg, DIV(59, 60)) + DIV(ready_threads, 60);
-        thread_foreach (&thread_calculate_recent_cpu, NULL);
-      }
-  
-      if (timer_ticks () % 4 == 0)
-      {
-        thread_foreach (&thread_calculate_priority, NULL);
-        priority_sort_ready_list ();
-        
-      }
-      /* Preempt running thread if its time slice has passed, or a higher priority thread is ready */
-      if (++thread_ticks >= TIME_SLICE || (!list_empty (&ready_list) && 
-          thread_current ()->priority < list_entry (list_front (&ready_list), struct thread, elem)->priority))
-      intr_yield_on_return ();
-    }
-  else
-    {
-      if (++thread_ticks >= TIME_SLICE)
-        intr_yield_on_return ();
+      case MLFQS:
+        thread_tick_mlfqs ();
+        break;
+      default:
+        thread_tick_ps ();
     }
 }
 
@@ -557,16 +525,13 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  if (scheduler_type == BSD_SCHEDULER)
+  switch (scheduler)
     {
-      thread_calculate_priority (t);
-      t->orig_priority = INTEGER(t->real_priority);
-    }
-  else
-    {
-      t->priority = priority;
-      t->real_priority = FIXED_POINT(priority);
-      t->orig_priority = priority;
+      case MLFQS:
+        init_thread_mlfqs (t);
+        break;
+      default:
+        init_thread_ps (t, priority);
     }
   t->magic = THREAD_MAGIC;
   t->waiting_lock = NULL;
@@ -695,6 +660,71 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
+}
+
+/* Checks whether the current thread finished its time slice or not
+   if yes it forces it to yield the CPU.
+
+   NOTE: This function is used for doing this check every 
+   time tick with the Priority Scheduler(PS). */
+static void
+thread_tick_ps (void)
+{
+  if (++thread_ticks >= TIME_SLICE)
+        intr_yield_on_return ();
+}
+
+/* Checks whether the current thread finished its time slice or not
+   also it updates the load_avg every one second (every 100 timer ticks) and
+   the recent_cpu every timer tick.
+
+   NOTE: This function is used for doing this check and update every 
+   time tick with the Multi-level Feedback Queue Scheduler(MLFQS). */
+static void
+thread_tick_mlfqs (void)
+{
+  if (thread_current () != idle_thread)
+      thread_current ()->recent_cpu = ADD_INT(thread_current ()->recent_cpu, 1);
+    
+  // One second has passed.
+  if (timer_ticks () % TIMER_FREQ == 0)
+    {
+      int ready_threads = list_size (&ready_list);
+      if (thread_current () != idle_thread)
+        ready_threads++;
+      load_avg = MUL(load_avg, DIV(59, 60)) + DIV(ready_threads, 60);
+      thread_foreach (&thread_calculate_recent_cpu, NULL);
+    }
+
+  if (timer_ticks () % 4 == 0)
+    {
+      thread_foreach (&thread_calculate_priority, NULL);
+      priority_sort_ready_list ();
+      
+    }
+    /* Preempt running thread if its time slice has passed, or a higher priority thread is ready */
+  if (++thread_ticks >= TIME_SLICE || (!list_empty (&ready_list) && 
+      thread_current ()->priority < list_entry (list_front (&ready_list), struct thread, elem)->priority))
+  intr_yield_on_return ();
+}
+
+/* Handles the thread initialization part required when using
+   Priority Scheduler(PS). */
+static void
+init_thread_ps (struct thread *t, int priority)
+{
+  t->priority = priority;
+  t->real_priority = FIXED_POINT(priority);
+  t->orig_priority = priority;
+}
+
+/* Handles the thread initialization part required when using
+   Multi-level Feedback Queue Scheduler(MLFQS). */
+static void
+init_thread_mlfqs (struct thread *t)
+{
+  thread_calculate_priority (t);
+  t->orig_priority = INTEGER(t->real_priority);
 }
 
 /* Offset of `stack' member within `struct thread'.
