@@ -136,7 +136,7 @@ thread_start (void)
 void
 thread_calculate_recent_cpu (struct thread *t)
 {
-  t->recent_cpu = ADD_INT (MUL (DIV (MUL_INT(load_avg, 2), ADD_INT (MUL_INT (load_avg, 2), 1)), t->recent_cpu), t->nice);
+  t->recent_cpu = ADD_INT (MUL (DIV (2 * load_avg, ADD_INT (2 * load_avg, 1)), t->recent_cpu), t->nice);
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -421,20 +421,20 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void)
 {
-  return ROUND (MUL_INT (load_avg, 100));
+  return ROUND (100 * load_avg);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void)
 {
-  return ROUND (MUL_INT (thread_current ()->recent_cpu, 100));
+  return ROUND (100 * thread_current ()->recent_cpu);
 }
 
 void
 thread_calculate_priority (struct thread *t)
 {
-  t->real_priority = FIXED_POINT (PRI_MAX) - DIV_INT (t->recent_cpu, 4) - FIXED_POINT (t->nice * 2);
+  t->real_priority = FIXED_POINT (PRI_MAX - t->nice * 2) - t->recent_cpu / 4;
   t->priority = INTEGER (t->real_priority);
   sort_sema_waiters (t->waiting_sema);
   sort_condvar_waiters(t->waiting_condvar);
