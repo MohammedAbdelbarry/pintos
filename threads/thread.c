@@ -694,11 +694,13 @@ thread_tick_mlfqs (void)
         ready_threads++;
       load_avg = MUL(load_avg, DIV(59, 60)) + DIV(ready_threads, 60);
       thread_foreach (&thread_calculate_recent_cpu, NULL);
+      thread_foreach (&thread_calculate_priority, NULL);
+      priority_sort_ready_list ();
     }
 
   if (timer_ticks () % 4 == 0)
     {
-      thread_foreach (&thread_calculate_priority, NULL);
+      thread_calculate_priority (thread_current ());
       priority_sort_ready_list ();
     }
     /* Preempt running thread if its time slice has passed, or a higher priority thread is ready */
