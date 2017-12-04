@@ -1,6 +1,9 @@
 #ifndef __LIB_KERNEL_FIXED_POINT_H
 #define __LIB_KERNEL_FIXED_POINT_H
 
+/* Defining real data type using an integer */
+typedef int real;
+
 /* Number of bits used to represent the fractional
    part of the fixed point number. */
 #define DECIMAL_BITS 14
@@ -13,6 +16,8 @@
 /* Converts a fixed point number to integer by shifting
    its bits to the right $DECIMAL_BITS times. */
 #define INTEGER(x) ((x) / SCALE)
+/* Rounds a fixed point number to the nearest integer */
+#define ROUND(x) (((x) > 0) ? ((x) + SCALE / 2) / SCALE : ((x) - SCALE / 2) / SCALE)
 /* Adds two fixed point numbers, which is essentially
    the same as adding two integers. */
 #define ADD(x, y) ((x) + (y))
@@ -34,7 +39,5 @@
 /* Divides a fixed point number 'x' by an int 'n'.
   The result is a fixed point number. */
 #define DIV_INT(x, n) ((x) / (n))
-/* Rounds a fixed point number x to the nearest integer. */
-#define ROUND(x) (((x) > 0) ? ((x) + SCALE / 2) / SCALE : ((x) - SCALE / 2) / SCALE) 
 
 #endif // fixed_point.h
