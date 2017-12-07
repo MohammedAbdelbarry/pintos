@@ -21,6 +21,7 @@
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
 
+/* A list of sleeping threads */
 static struct list sleeping_threads;
 
 /* Number of loops per timer tick.
