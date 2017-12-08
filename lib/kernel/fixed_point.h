@@ -17,7 +17,8 @@ typedef int real;
    its bits to the right $DECIMAL_BITS times. */
 #define INTEGER(x) ((x) / SCALE)
 /* Rounds a fixed point number to the nearest integer */
-#define ROUND(x) (((x) > 0) ? ((x) + SCALE / 2) / SCALE : ((x) - SCALE / 2) / SCALE)
+#define ROUND(x) (((x) > 0) \
+                      ? ((x) + SCALE / 2) / SCALE : ((x) - SCALE / 2) / SCALE)
 /* Adds two fixed point numbers, which is essentially
    the same as adding two integers. */
 #define ADD(x, y) ((x) + (y))

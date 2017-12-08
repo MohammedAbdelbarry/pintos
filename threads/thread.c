@@ -139,7 +139,8 @@ thread_start (void)
 void
 thread_calculate_recent_cpu (struct thread *t)
 {
-  t->recent_cpu = ADD_INT (MUL (DIV (2 * load_avg, ADD_INT (2 * load_avg, 1)), t->recent_cpu), t->nice);
+  t->recent_cpu = ADD_INT (MUL (DIV (2 * load_avg, ADD_INT (2 * load_avg, 1)),
+                     t->recent_cpu), t->nice);
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -179,7 +180,8 @@ thread_print_stats (void)
 /* Compares the priority of two threads. Used to create an ordered
    list of the threads based on priority. */
 bool
-priority_comparator (struct list_elem *first, struct list_elem *second, void *aux)
+priority_comparator (struct list_elem *first, struct list_elem *second, 
+                     void *aux)
 {
   if (second == NULL)
     return first != NULL;
@@ -413,8 +415,9 @@ thread_set_nice (int new_nice)
   enum intr_level old_level = intr_disable ();
   thread_current ()->nice = new_nice;
   thread_calculate_priority (thread_current ());
-  if (!list_empty (&ready_list) &&
-        thread_get_priority () < list_entry (list_front (&ready_list), struct thread, elem)->priority)
+  if (!list_empty (&ready_list) 
+        && thread_get_priority () 
+      < list_entry (list_front (&ready_list), struct thread, elem)->priority)
     thread_yield();
   intr_set_level (old_level);
 }
@@ -713,8 +716,9 @@ thread_tick_mlfqs (void)
       priority_sort_ready_list ();
     }
   /* Preempt running thread if its time slice has passed, or a higher priority thread is ready */
-  if (++thread_ticks >= TIME_SLICE || (!list_empty (&ready_list) &&
-      thread_current ()->priority < list_entry (list_front (&ready_list), struct thread, elem)->priority))
+  if (++thread_ticks >= TIME_SLICE || (!list_empty (&ready_list) 
+      && thread_current ()->priority 
+    < list_entry (list_front (&ready_list), struct thread, elem)->priority))
     intr_yield_on_return ();
 }
 
