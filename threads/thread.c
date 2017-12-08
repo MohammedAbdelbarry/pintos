@@ -264,7 +264,7 @@ thread_block (void)
   ASSERT (intr_get_level () == INTR_OFF);
   
   if (scheduler == MLFQ_SCHEDULER)
-    thread_calculate_priority (t);
+    thread_calculate_priority (thread_current ());
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
 }
