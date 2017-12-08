@@ -55,7 +55,10 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 static real load_avg;           /* # of threads ready to run over the past minute */
-static bool first_init_thread;
+
+/* Boolean to indicate if the current thread getting
+   created is the first initial thread in the system. */
+static bool first_init_thread;  
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -707,10 +710,10 @@ thread_tick_mlfqs (void)
       thread_calculate_priority (thread_current ());
       priority_sort_ready_list ();
     }
-    /* Preempt running thread if its time slice has passed, or a higher priority thread is ready */
+  /* Preempt running thread if its time slice has passed, or a higher priority thread is ready */
   if (++thread_ticks >= TIME_SLICE || (!list_empty (&ready_list) &&
       thread_current ()->priority < list_entry (list_front (&ready_list), struct thread, elem)->priority))
-  intr_yield_on_return ();
+    intr_yield_on_return ();
 }
 
 /* Handles the thread initialization part required when using
