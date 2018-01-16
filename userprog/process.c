@@ -44,7 +44,7 @@ process_execute (const char *file_name)
   char *save_ptr, *token;
   /* Argument Splitting */
   int argc = 0;
-  char **argv = malloc (50 * sizeof(char *));
+  char **argv = palloc_get_page (0);
   if (argv == NULL)
     return TID_ERROR;
   for (token = strtok_r (fn_copy, " \t", &save_ptr); token != NULL;
@@ -130,6 +130,7 @@ start_process (void *process_args_)
   /* Argument Passing */
   argument_passing (args, &if_.esp);
   palloc_free_page (file_name);
+  palloc_free_page (args->argv);
   free (args);
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
