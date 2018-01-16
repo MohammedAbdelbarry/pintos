@@ -77,40 +77,40 @@ syscall_handler (struct intr_frame *f)
         halt ();
         break;
       case SYS_EXIT:
-        exit (*(esp + 3));
+        exit (*(esp + 1));
         break;
       case SYS_EXEC:
-        f->eax = exec ((char *) *(esp + 3));
+        f->eax = exec ((char *) *(esp + 1));
         break;
       case SYS_WAIT:
-        f->eax = wait ((pid_t) *(esp + 3));
+        f->eax = wait ((pid_t) *(esp + 1));
         break;
       case SYS_CREATE:
-        f->eax = create ((char *) *(esp + 4), *(esp + 5));
+        f->eax = create ((char *) *(esp + 1), *(esp + 2));
         break;
       case SYS_REMOVE:
-        f->eax = remove ((char *) *(esp + 3));
+        f->eax = remove ((char *) *(esp + 1));
         break;
       case SYS_OPEN:
-        f->eax = open ((char *) *(esp + 3));
+        f->eax = open ((char *) *(esp + 1));
         break;
       case SYS_FILESIZE:
-        f->eax = filesize (*(esp + 3));
+        f->eax = filesize (*(esp + 1));
         break;
       case SYS_READ:
-        f->eax = read (*(esp + 5), (void *) *(esp + 6), *(esp + 7));
+        f->eax = read (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
         break;
       case SYS_WRITE:
-        f->eax = write (*(esp + 5), (void *) *(esp + 6), *(esp + 7));
+        f->eax = write (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
         break;
       case SYS_SEEK:
-        seek (*(esp + 4), *(esp + 5));
+        seek (*(esp + 1), *(esp + 2));
         break;
       case SYS_TELL:
-        f->eax = tell (*(esp + 3));
+        f->eax = tell (*(esp + 1));
         break;
       case SYS_CLOSE:
-        close (*(esp + 3));
+        close (*(esp + 1));
         break;
       default:
         break;
