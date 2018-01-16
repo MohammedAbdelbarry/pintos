@@ -244,19 +244,37 @@ filesize (int fd)
 static int
 read (int fd, void *buffer, unsigned size)
 {
-  struct file* file = get_file (fd);
-  if (file == NULL)
-    return -1;
-  return file_read (file, buffer, size);
+  if (fd == 0)
+    {
+      for (int i = 0 ; i < size ; i++)
+        *(char *)(buffer + i) = input_getc ();
+      return size;
+    }
+  else
+    {
+      struct file* file = get_file (fd);
+      if (file == NULL)
+        return -1;
+      return file_read (file, buffer, size);
+    }
 }
 
 static int
 write (int fd, const void *buffer, unsigned size)
 {
-  struct file* file = get_file (fd);
-  if (file == NULL)
-    return -1;
-  return file_write (file, buffer, size);
+  if (fd == 1)
+    {
+      //printf ("%d\t%p\t%d\n", fd, buffer, size);
+      putbuf (buffer, size);
+      return size;
+    }
+  else
+    {
+      struct file* file = get_file (fd);
+      if (file == NULL)
+        return -1;
+      return file_write (file, buffer, size);
+    }
 }
 
 static void
