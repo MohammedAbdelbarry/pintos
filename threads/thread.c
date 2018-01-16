@@ -302,12 +302,6 @@ thread_exit (void)
   NOT_REACHED ();
 }
 
-void 
-thread_return_status (int status)
-{
-  
-}
-
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
 void
@@ -595,3 +589,22 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+/* Gets a thread from the all threads list(all_list) by thread identifier(tid)
+ if the thread is not found it returns NULL. */
+struct thread *
+get_thread_by_id (tid_t tid)
+{
+  struct thread *th = NULL;
+  struct list_elem *cur = list_begin (&all_list);
+  if (cur != list_end (&all_list))
+    {
+      for (cur = list_next(cur); cur != list_end (&all_list); cur = list_next(cur))
+        {
+          th = list_entry (cur, struct thread, elem);
+          if (th->tid == tid)
+            return th;
+        }
+    }
+    return NULL;
+}
