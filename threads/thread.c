@@ -92,7 +92,6 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
-
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -304,6 +303,12 @@ thread_exit (void)
   NOT_REACHED ();
 }
 
+void 
+thread_return_status (int status)
+{
+  
+}
+
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
 void
@@ -470,6 +475,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
+#ifdef USERPROG
+  list_init (&t->child_processes);
+#endif
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
