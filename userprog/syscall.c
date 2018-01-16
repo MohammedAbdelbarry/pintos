@@ -120,13 +120,14 @@ syscall_handler (struct intr_frame *f)
 static void
 halt (void)
 {
-
+  shutdown_power_off ();
 }
 
 static void
 exit (int status)
 {
-
+  thread_return_status (status);
+  thread_exit ();
 }
 
 static pid_t

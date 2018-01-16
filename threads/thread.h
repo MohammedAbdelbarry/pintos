@@ -107,10 +107,19 @@ struct thread
     struct list open_files;                    /* Open Files. */
     int next_fd;
     struct lock fd_lock;
+    int ppid;                           /* Parent process id. */
+    struct list child_processes;        /* List of child processes' necessary info. */
 #endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+  };
+
+struct child_info
+  {
+    int exit_status;
+    int pid;
+    struct list_elem elem;
   };
 
 /* If false (default), use round-robin scheduler.
@@ -135,6 +144,7 @@ tid_t thread_tid (void);
 const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
+void thread_return_status (int status);
 void thread_yield (void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
