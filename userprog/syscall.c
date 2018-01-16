@@ -126,7 +126,7 @@ exec (const char *cmd_line)
 static int
 wait (pid_t pid)
 {
-  return 0;
+  return process_wait (pid);
 }
 
 static bool

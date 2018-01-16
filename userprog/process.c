@@ -151,9 +151,38 @@ start_process (void *process_args_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  while (true);
+  // Check that wait on this pid wasn't called before, if so, return -1, else continue.
+  // Loop on children and make sure that pid is a child of current process.
+  // if pid isn't a direct child, return -1
+  // if pid is still alive, sleep until it finishes.
+  // wait returns -1 if pid was terminated by the kernel(due to an exception)
+  struct thread *cur = thread_current ();
+  struct list_elem *e;
+  struct child_info *info;
+  bool found = false;
+  for (e = list_begin (&cur->child_processes); e != list_end (&cur->child_processes);
+       e = list_next (e))
+    {
+      info = list_entry (e, struct child_info, elem);
+      if (info->pid == child_tid)
+        {
+          found = true;
+          break;
+        }
+    }
+  if (!found)
+    return -1;
+  // while pid is still alive sleep for a small period.
+  while (info->alive)
+    {
+      // sleep for a period.
+    }
+  // Check if pid was terminated by the kernel, if so return -1, else return info->exit_status
+
+  
+  // while (true);
   return -1;
 }
 
