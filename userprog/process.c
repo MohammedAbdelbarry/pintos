@@ -21,6 +21,11 @@
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
+struct process_args {
+  char **argv;
+  int argc;
+};
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -30,42 +35,102 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
-
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-
+  char *save_ptr, *token;
+  /* Argument Splitting */
+  int argc = 0;
+  char **argv = malloc (50 * sizeof(char *));
+  if (argv == NULL)
+    return TID_ERROR;
+  for (token = strtok_r (fn_copy, " \t", &save_ptr); token != NULL;
+        token = strtok_r (NULL, " \t", &save_ptr))
+    {
+      int len = strlen (token);
+      argv[argc] = token;
+      argc++;
+    }
+  argv[argc] = NULL;
+  struct process_args *args = malloc (sizeof(struct process_args));
+  args->argv = argv;
+  args->argc = argc;
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  save_ptr = NULL;
+  tid = thread_create (strtok_r (file_name, " \t", &save_ptr), PRI_DEFAULT, start_process, args);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+     palloc_free_page (fn_copy); 
   return tid;
+}
+
+static void
+*argument_passing (struct process_args *args, void **esp_)
+{
+  void *esp = *esp_;
+  void *org_esp = esp;
+  int argc = args->argc;
+  char *argv_ptr[argc + 1];
+  for (int i = 0 ; i < argc ; i++)
+    {
+      int len = strlen (args->argv[i]);
+      esp -= (len + 1) * sizeof (char);
+      strlcpy (esp, args->argv[i], len + 1);      
+      argv_ptr[i] = esp;
+      printf ("%p\targv[%d] data\t%s\n", esp, i, (char *) esp);
+    }
+  esp -= ((int)esp % 4 + 4) % 4;
+  argv_ptr[argc] = NULL;
+  for (int i = argc ; i >= 0 ; i--)
+    {
+      esp -= sizeof (char *);
+      memcpy (esp, &argv_ptr[i], sizeof (char *));
+      printf ("%p\targv[%d] pointer\t%p\n", esp, i, *(void **)esp);
+    }
+  
+  memcpy (esp - sizeof(char **), &esp, sizeof (char **));
+  esp -= sizeof (char **);
+  printf ("%p\targv pointer\t%p\n", esp, *(void **)esp);
+  esp -= sizeof (int);
+  memcpy (esp, &argc, sizeof (int));
+  printf ("%p\targc\t\t%d\n", esp, *(int *)esp);
+  esp -= sizeof (int);
+  memset (esp, 0, sizeof (int));
+  printf ("%p\treturn address\t%p\n", esp, *(void **)esp);
+  printf ("Stack Size: %d\n", esp - org_esp);
+  *esp_ = esp;
 }
 
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *process_args_)
 {
-  char *file_name = file_name_;
+  ASSERT (process_args_ != NULL);
+
+  struct process_args *args = process_args_;
+  char *file_name = args->argv[0];
   struct intr_frame if_;
   bool success;
-
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
-
   /* If load failed, quit. */
-  palloc_free_page (file_name);
   if (!success) 
-    thread_exit ();
-
+    {
+      palloc_free_page (file_name);
+      free (args);
+      thread_exit ();
+    }
+  /* Argument Passing */
+  argument_passing (args, &if_.esp);
+  palloc_free_page (file_name);
+  free (args);
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -88,6 +153,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  while (true);
   return -1;
 }
 
