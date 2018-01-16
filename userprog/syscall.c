@@ -77,40 +77,40 @@ syscall_handler (struct intr_frame *f)
         halt ();
         break;
       case SYS_EXIT:
-        exit (*(esp + 1));
+        exit (*(esp + 3));
         break;
       case SYS_EXEC:
-        f->eax = exec ((char *) *(esp + 1));
+        f->eax = exec ((char *) *(esp + 3));
         break;
       case SYS_WAIT:
-        f->eax = wait ((pid_t) *(esp + 1));
+        f->eax = wait ((pid_t) *(esp + 3));
         break;
       case SYS_CREATE:
-        f->eax = create ((char *) *(esp + 1), *(esp + 2));
+        f->eax = create ((char *) *(esp + 4), *(esp + 5));
         break;
       case SYS_REMOVE:
-        f->eax = remove ((char *) *(esp + 1));
+        f->eax = remove ((char *) *(esp + 3));
         break;
       case SYS_OPEN:
-        f->eax = open ((char *) *(esp + 1));
+        f->eax = open ((char *) *(esp + 3));
         break;
       case SYS_FILESIZE:
-        f->eax = filesize (*(esp + 1));
+        f->eax = filesize (*(esp + 3));
         break;
       case SYS_READ:
-        f->eax = read (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
+        f->eax = read (*(esp + 5), (void *) *(esp + 6), *(esp + 7));
         break;
       case SYS_WRITE:
-        f->eax = write (*(esp + 1), (void *) *(esp + 2), *(esp + 3));
+        f->eax = write (*(esp + 5), (void *) *(esp + 6), *(esp + 7));
         break;
       case SYS_SEEK:
-        seek (*(esp + 1), *(esp + 2));
+        seek (*(esp + 4), *(esp + 5));
         break;
       case SYS_TELL:
-        f->eax = tell (*(esp + 1));
+        f->eax = tell (*(esp + 3));
         break;
       case SYS_CLOSE:
-        close (*(esp + 1));
+        close (*(esp + 3));
         break;
       default:
         break;
@@ -157,10 +157,10 @@ allocate_fd (void)
 static struct open_file
 *get_open_file (int fd)
 {
-  struct list_elem *cur = list_begin (thread_current ()->open_files);
-  if (cur != list_end (thread_current ()->open_files)) 
+  struct list_elem *cur = list_begin (&thread_current ()->open_files);
+  if (cur != list_end (&thread_current ()->open_files)) 
     {
-      for (cur = list_next (cur); cur != list_end (list); cur = list_next (cur))
+      for (cur = list_next (cur); cur != list_end (&thread_current ()->open_files); cur = list_next (cur))
         {
           struct open_file *file_data = list_entry (cur, struct open_file, elem);
           if (file_data->fd == fd)
@@ -228,19 +228,37 @@ filesize (int fd)
 static int
 read (int fd, void *buffer, unsigned size)
 {
-  struct file* file = get_file (fd);
-  if (file == NULL)
-    return -1;
-  return file_read (file, buffer, size);
+  if (fd == 0)
+    {
+      for (int i = 0 ; i < size ; i++)
+        *(char *)(buffer + i) = input_getc ();
+      return size;
+    }
+  else
+    {
+      struct file* file = get_file (fd);
+      if (file == NULL)
+        return -1;
+      return file_read (file, buffer, size);
+    }
 }
 
 static int
 write (int fd, const void *buffer, unsigned size)
 {
-  struct file* file = get_file (fd);
-  if (file == NULL)
-    return -1;
-  return file_write (file, buffer, size);
+  if (fd == 1)
+    {
+      //printf ("%d\t%p\t%d\n", fd, buffer, size);
+      putbuf (buffer, size);
+      return size;
+    }
+  else
+    {
+      struct file* file = get_file (fd);
+      if (file == NULL)
+        return -1;
+      return file_write (file, buffer, size);
+    }
 }
 
 static void
