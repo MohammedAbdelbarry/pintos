@@ -3,6 +3,7 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -46,6 +47,18 @@ put_user (uint8_t *udst, uint8_t byte)
   return error_code != -1;
 }
 
+static bool
+test_userspace (char *ptr)
+{
+  if (ptr == NULL || ptr >= PHYS_BASE)
+    return false;
+  for (; ptr != NULL ; ++ptr)
+    {
+      if (get_user (ptr) == -1)
+        return false;
+    }
+  return true;
+}
 
 void
 syscall_init (void) 
@@ -128,6 +141,43 @@ wait (pid_t pid)
   return 0;
 }
 
+static int
+allocate_fd (void) 
+{
+  int fd;
+
+  lock_acquire (&thread_current ()->fd_lock);
+  fd = thread_current ()->next_fd++;
+  lock_release (&thread_current ()->fd_lock);
+
+  return fd;
+}
+
+static struct open_file
+*get_open_file (int fd)
+{
+  struct list_elem *cur = list_begin (thread_current ()->open_files);
+  if (cur != list_end (thread_current ()->open_files)) 
+    {
+      for (cur = list_next (cur); cur != list_end (list); cur = list_next (cur))
+        {
+          struct open_file *file_data = list_entry (cur, struct open_file, elem);
+          if (file_data->fd == fd)
+            return file_data; 
+        }
+    }
+  return NULL;
+}
+
+static struct file
+*get_file (int fd)
+{
+  struct open_file *file_data = get_open_file (fd);
+  if (file_data == NULL)
+    return NULL;
+  return file_data->file;
+}
+
 static bool
 create (const char *file, unsigned initial_size)
 {
@@ -143,41 +193,80 @@ remove (const char *file)
 static int
 open (const char *file)
 {
-  return 0;
+  struct open_file *file_data = malloc (sizeof(struct open_file));
+  if (file_data == NULL)
+    return -1;
+  file_data->fd = allocate_fd ();
+  if (test_userspace (file))
+    {
+      file_data->file = filesys_open (file);
+      if (file_data->file == NULL)
+        return -1;
+      list_push_back (&thread_current ()->open_files, &file_data->elem);
+    }
+  else
+    {
+
+      // TODO: Abort the process here
+
+      free (file_data);
+      return -1;
+    }
+  return file_data->fd;
 }
 
 static int
 filesize (int fd)
 {
-  return 0;
+  struct file* file = get_file (fd);
+  if (file == NULL)
+    return -1;
+  return file_length (file);
 }
 
 static int
 read (int fd, void *buffer, unsigned size)
 {
-  return 0;
+  struct file* file = get_file (fd);
+  if (file == NULL)
+    return -1;
+  return file_read (file, buffer, size);
 }
 
 static int
 write (int fd, const void *buffer, unsigned size)
 {
-  return 0;
+  struct file* file = get_file (fd);
+  if (file == NULL)
+    return -1;
+  return file_write (file, buffer, size);
 }
 
 static void
 seek (int fd, unsigned position)
 {
-
+  struct file* file = get_file (fd);
+  if (file == NULL)
+    return;
+  file_seek (file, position);
 }
 
 static unsigned
 tell (int fd)
 {
-  return 0;
+  struct file* file = get_file (fd);
+  if (file == NULL)
+    return 0;
+  return file_tell (file);
 }
 
 static void
 close (int fd)
 {
-
+  struct open_file* file_data = get_open_file (fd);
+  if (file_data == NULL || file_data->file == NULL)
+    return;
+  file_close (file_data->file);
+  list_remove (&file_data->elem);
+  free (file_data);
 }

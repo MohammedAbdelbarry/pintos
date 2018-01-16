@@ -9,7 +9,6 @@
 #include "threads/intr-stubs.h"
 #include "threads/palloc.h"
 #include "threads/switch.h"
-#include "threads/synch.h"
 #include "threads/vaddr.h"
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -470,6 +469,11 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
+  #ifdef USERPROG
+  list_init (&t->open_files);
+  lock_init (&t->fd_lock);
+  t->next_fd = 2;
+  #endif
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
