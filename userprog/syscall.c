@@ -140,7 +140,7 @@ exit (int status)
   struct thread *parent_thread = get_thread_by_id (parent_pid);
   if (parent_thread != NULL)
     {
-      struct child_info *child = get_child_info_by_id (parent_thread->child_processes, thread_current ()->tid);
+      struct child_info *child = get_child_info_by_id (&parent_thread->child_processes, thread_current ()->tid);
       child->exit_status = status;
     }
   thread_exit ();

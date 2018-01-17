@@ -164,6 +164,6 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 struct thread *get_thread_by_id (tid_t);
-struct child_info *get_child_info_by_id (struct list child_processes, tid_t tid);
+struct child_info *get_child_info_by_id (struct list *child_processes, tid_t tid);
 
 #endif /* threads/thread.h */

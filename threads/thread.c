@@ -295,10 +295,12 @@ thread_exit (void)
   struct thread *parent_thread = get_thread_by_id (thread_current ()->ppid);
   if (parent_thread != NULL)
     {
-      struct child_info *child = get_child_info_by_id (parent_thread->child_processes, thread_current ()->tid);
+      lock_acquire (&parent_thread->wait_lock);
+      struct child_info *child = get_child_info_by_id (&parent_thread->child_processes, thread_current ()->tid);
       child->is_exited = true;
+      cond_broadcast (&parent_thread->wait_condvar, &parent_thread->wait_lock);
+      lock_release (&parent_thread->wait_lock);
     }
-  cond_broadcast (&parent_thread->wait_condvar, &parent_thread->wait_lock);
   process_exit ();
 #endif
 
@@ -623,15 +625,15 @@ get_thread_by_id (tid_t tid)
 /* Returns child_info struct with given id from given child_processes list, or NULL
   if not found. */
 struct child_info *
-get_child_info_by_id (struct list child_processes, tid_t tid)
+get_child_info_by_id (struct list *child_processes, tid_t tid)
 {
-  struct list_elem *cur = list_begin (&child_processes);
-  while (cur != list_end (&child_processes))
+  struct list_elem *cur = list_begin (child_processes);
+  while (cur != list_end (child_processes))
     {
       struct child_info *child = list_entry (cur, struct child_info, elem);
       if (child->pid == tid)
         return child;
-      cur = list_next (&child_processes);
+      cur = list_next (cur);
     }
     return NULL;
 }
