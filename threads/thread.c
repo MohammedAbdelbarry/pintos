@@ -291,16 +291,18 @@ thread_exit (void)
 {
   ASSERT (!intr_context ());
 
-#ifdef USERPROG
-  struct thread *parent_thread = get_thread_by_id (thread_current ()->ppid);
-  if (parent_thread != NULL)
+  /* Remove the acquired locks. */
+  struct list_elem *cur = list_begin (&thread_current ()->acquired_locks);
+  struct list_elem *next = NULL;
+  while (cur != list_end (&thread_current ()->acquired_locks))
     {
-      lock_acquire (&parent_thread->wait_lock);
-      struct child_info *child = get_child_info_by_id (&parent_thread->child_processes, thread_current ()->tid);
-      child->is_exited = true;
-      cond_broadcast (&parent_thread->wait_condvar, &parent_thread->wait_lock);
-      lock_release (&parent_thread->wait_lock);
+      next = list_next (cur);
+      list_remove (cur);
+      free (list_entry (cur, struct lock, elem));
+      cur = next;
     }
+ 
+#ifdef USERPROG
   process_exit ();
 #endif
 
@@ -478,12 +480,14 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  list_init (&t->acquired_locks);
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 
 #ifdef USERPROG
   list_init (&t->open_files);
   list_init (&t->child_processes);
+  lock_init (&t->exec_lock);
   lock_init (&t->fd_lock);
   lock_init (&t->wait_lock);
   cond_init (&t->wait_condvar);

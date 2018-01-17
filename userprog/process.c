@@ -60,9 +60,10 @@ process_execute (const char *file_name)
   args->argc = argc;
   /* Create a new thread to execute FILE_NAME. */
   save_ptr = NULL;
-  
   lock_acquire (&thread_current ()->wait_lock);
   tid = thread_create (strtok_r (file_name, " \t", &save_ptr), PRI_DEFAULT, start_process, args);
+  if (tid == TID_ERROR)
+     palloc_free_page (fn_copy);
   struct child_info *child = malloc (sizeof (struct child_info));
   
   // TODO: Check child allocation.
@@ -74,9 +75,6 @@ process_execute (const char *file_name)
   list_push_back (&thread_current ()->child_processes, &child->elem);
   
   lock_release (&thread_current ()->wait_lock);
-
-  if (tid == TID_ERROR)
-     palloc_free_page (fn_copy);
 
   return tid;
 }
@@ -241,6 +239,30 @@ process_exit (void)
       cur->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
+    }
+
+  /* Remove child processes of the exiting process. */
+  struct list_elem *child_elem = list_begin (&cur->child_processes);
+  struct list_elem *next = NULL;
+  while (child_elem != list_end (&cur->child_processes))
+    {
+      next = list_next (child_elem);
+      list_remove (child_elem);
+      free (list_entry (child_elem, struct child_info, elem));
+      child_elem = next;
+    }
+
+  /* Close open files by the exiting process. */
+  close_files (cur);  
+
+  struct thread *parent_thread = get_thread_by_id (thread_current ()->ppid);
+  if (parent_thread != NULL)
+    {
+      lock_acquire (&parent_thread->wait_lock);
+      struct child_info *child = get_child_info_by_id (&parent_thread->child_processes, thread_current ()->tid);
+      child->is_exited = true;
+      cond_broadcast (&parent_thread->wait_condvar, &parent_thread->wait_lock);
+      lock_release (&parent_thread->wait_lock);
     }
 }
 

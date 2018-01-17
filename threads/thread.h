@@ -103,6 +103,8 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    struct list acquired_locks;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -112,6 +114,7 @@ struct thread
     pid_t ppid;                          /* Parent process id. */
     struct list child_processes;         /* List of child processes' necessary info. */
     struct lock wait_lock;
+    struct lock exec_lock;
     struct condition wait_condvar;
 #endif
 
