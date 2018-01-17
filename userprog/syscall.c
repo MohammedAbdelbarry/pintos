@@ -317,7 +317,7 @@ write (int fd, const void *buffer, unsigned size)
       struct file* file = get_file (fd);
       if (file == NULL)
         return -1;
-              int count;
+      int count;
       lock_acquire (&filesys_lock);
       count = file_write (file, buffer, size);
       lock_release (&filesys_lock);
