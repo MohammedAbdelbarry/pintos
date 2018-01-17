@@ -52,10 +52,18 @@ put_user (uint8_t *udst, uint8_t byte)
   return error_code != -1;
 }
 
+
+static bool
+is_valid_userspace_ptr (void *ptr)
+{
+  return !(ptr == NULL || ptr >= PHYS_BASE || pagedir_get_page (thread_current ()->pagedir, ptr) == NULL);
+}
+
+
 static bool
 is_valid_userspace_string (char *ptr)
 {
-  if (ptr == NULL || ptr >= PHYS_BASE)
+  if (!is_valid_userspace_ptr (ptr))
     return false;
   for (; *ptr != '\0' ; ++ptr)
     {
@@ -63,12 +71,6 @@ is_valid_userspace_string (char *ptr)
         return false;
     }
   return true;
-}
-
-static bool
-is_valid_userspace_ptr (void *ptr)
-{
-  return !(ptr == NULL || ptr >= PHYS_BASE || pagedir_get_page (thread_current ()->pagedir, ptr) == NULL);
 }
 
 void
@@ -153,7 +155,10 @@ static pid_t
 exec (const char *cmd_line)
 {
   if (!is_valid_userspace_string (cmd_line))
-    return -1;
+    {
+      exit (-1);
+      return -1;
+    }
   lock_acquire (&thread_current ()->exec_lock);
   pid_t id = process_execute (cmd_line);
   lock_release (&thread_current ()->exec_lock);
@@ -207,6 +212,7 @@ create (const char *file, unsigned initial_size)
   if (!is_valid_userspace_string (file))
     {
       // TODO: Abort the process here
+      exit (-1);
       return false;
     }
   // printf ("Creating File: %s with size: %d\n", file, initial_size);
@@ -226,6 +232,7 @@ remove (const char *file)
   if (!is_valid_userspace_string (file))
     {
       // TODO: Abort the process here
+      exit (-1);
       return false;
     }
   // TODO: Check for process references on the file.
@@ -247,6 +254,7 @@ open (const char *file)
   if (!is_valid_userspace_string (file))
     {
       // TODO: Abort the process here
+      exit (-1);
       free (file_data);
       return -1;
     }
@@ -277,6 +285,7 @@ read (int fd, void *buffer, unsigned size)
   if (!is_valid_userspace_ptr (buffer), !is_valid_userspace_ptr (buffer + size - 1))
     {
       /* terminate process */
+      exit (-1);
       return -1;  
     }
   // printf ("read fd:%d\n", fd);
@@ -307,6 +316,7 @@ write (int fd, const void *buffer, unsigned size)
   if (!is_valid_userspace_ptr (buffer), !is_valid_userspace_ptr (buffer + size - 1))
     {
       /* terminate process */
+      exit (-1);
       return -1;
     }
   // printf ("write fd:%d\n", fd);
