@@ -149,7 +149,12 @@ exit (int status)
 static pid_t
 exec (const char *cmd_line)
 {
-  return 0;
+  if (!is_valid_userspace_string (cmd_line))
+    return -1;
+  lock_acquire (&thread_current ()->exec_lock);
+  pid_t id = process_execute (cmd_line);
+  lock_release (&thread_current ()->exec_lock);
+  return id;
 }
 
 static int

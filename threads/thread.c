@@ -484,6 +484,7 @@ init_thread (struct thread *t, const char *name, int priority)
 #ifdef USERPROG
   list_init (&t->open_files);
   list_init (&t->child_processes);
+  lock_init (&t->exec_lock);
   lock_init (&t->fd_lock);
   lock_init (&t->wait_lock);
   cond_init (&t->wait_condvar);

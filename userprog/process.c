@@ -60,9 +60,10 @@ process_execute (const char *file_name)
   args->argc = argc;
   /* Create a new thread to execute FILE_NAME. */
   save_ptr = NULL;
-  
   lock_acquire (&thread_current ()->wait_lock);
   tid = thread_create (strtok_r (file_name, " \t", &save_ptr), PRI_DEFAULT, start_process, args);
+  if (tid == TID_ERROR)
+     palloc_free_page (fn_copy);
   struct child_info *child = malloc (sizeof (struct child_info));
   
   // TODO: Check child allocation.
@@ -74,9 +75,6 @@ process_execute (const char *file_name)
   list_push_back (&thread_current ()->child_processes, &child->elem);
   
   lock_release (&thread_current ()->wait_lock);
-
-  if (tid == TID_ERROR)
-     palloc_free_page (fn_copy);
 
   return tid;
 }

@@ -112,6 +112,7 @@ struct thread
     pid_t ppid;                          /* Parent process id. */
     struct list child_processes;         /* List of child processes' necessary info. */
     struct lock wait_lock;
+    struct lock exec_lock;
     struct condition wait_condvar;
 #endif
 
