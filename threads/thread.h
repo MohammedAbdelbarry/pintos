@@ -106,21 +106,23 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    struct list open_files;                    /* Open Files. */
+    struct list open_files;             /* Open Files. */
     int next_fd;
     struct lock fd_lock;
-    pid_t ppid;                           /* Parent process id. */
-    struct list child_processes;        /* List of child processes' necessary info. */
+    pid_t ppid;                          /* Parent process id. */
+    struct list child_processes;         /* List of child processes' necessary info. */
+    struct lock wait_lock;
+    struct condition wait_condvar;
 #endif
 
     /* Owned by thread.c. */
-    unsigned magic;                     /* Detects stack overflow. */
+    unsigned magic;                      /* Detects stack overflow. */
   };
 
 struct child_info
   {
     int exit_status;
-    bool exit;      /* To check whether the exit system call has been invoked or not. */
+    bool is_exited;                            /* To check whether the exit system call has been invoked or not. */
     pid_t pid;
     struct list_elem elem;
   };
@@ -162,5 +164,6 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 struct thread *get_thread_by_id (tid_t);
+struct child_info *get_child_info_by_id (struct list child_processes, tid_t tid);
 
 #endif /* threads/thread.h */
