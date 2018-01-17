@@ -358,6 +358,13 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 bool
 load (const char *file_name, void (**eip) (void), void **esp) 
 {
+  static struct lock filesys_lock;
+  static bool lock_is_init = false;
+  if (!lock_is_init)
+    {
+      lock_init (&filesys_lock);
+      lock_is_init = true;
+    }
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
@@ -381,6 +388,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   file_deny_write (file);
   /* Read and verify executable header. */
+  lock_acquire (&filesys_lock);
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
       || ehdr.e_type != 2
@@ -451,7 +459,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
           break;
         }
     }
-
+  lock_release (&filesys_lock);
   /* Set up stack. */
   if (!setup_stack (esp))
     goto done;
@@ -467,7 +475,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     return false;
   file_data->fd = 2;
   file_data->file = file;
-  list_push_back (&thread_current ()->open_files, &file_data->elem);
+  list_push_back (&t->open_files, &file_data->elem);
  done:
   if (!success)
     file_close (file);
