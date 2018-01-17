@@ -240,6 +240,29 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+  /* Remove child processes of the exiting process. */
+  struct list_elem *child_elem = list_begin (&cur->child_processes);
+  struct list_elem *next = NULL;
+  while (child_elem != list_end (&cur->child_processes))
+    {
+      next = list_next (child_elem);
+      list_remove (child_elem);
+      child_elem = next;
+    }
+
+  /* Close open files by the exiting process. */
+  close_files (cur);  
+
+  struct thread *parent_thread = get_thread_by_id (thread_current ()->ppid);
+  if (parent_thread != NULL)
+    {
+      lock_acquire (&parent_thread->wait_lock);
+      struct child_info *child = get_child_info_by_id (&parent_thread->child_processes, thread_current ()->tid);
+      child->is_exited = true;
+      cond_broadcast (&parent_thread->wait_condvar, &parent_thread->wait_lock);
+      lock_release (&parent_thread->wait_lock);
+    }
 }
 
 /* Sets up the CPU for running user code in the current
