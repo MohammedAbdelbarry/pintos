@@ -184,14 +184,11 @@ static struct open_file
 *get_open_file (int fd)
 {
   struct list_elem *cur = list_begin (&thread_current ()->open_files);
-  if (cur != list_end (&thread_current ()->open_files)) 
+  for (; cur != list_end (&thread_current ()->open_files); cur = list_next (cur))
     {
-      for (; cur != list_end (&thread_current ()->open_files); cur = list_next (cur))
-        {
-          struct open_file *file_data = list_entry (cur, struct open_file, elem);
-          if (file_data->fd == fd)
-            return file_data; 
-        }
+      struct open_file *file_data = list_entry (cur, struct open_file, elem);
+      if (file_data->fd == fd)
+        return file_data; 
     }
   return NULL;
 }

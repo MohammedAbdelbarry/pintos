@@ -79,7 +79,7 @@ static void
       esp -= (len + 1) * sizeof (char);
       strlcpy (esp, args->argv[i], len + 1);      
       argv_ptr[i] = esp;
-      printf ("%p\targv[%d] data\t%s\n", esp, i, (char *) esp);
+      // printf ("%p\targv[%d] data\t%s\n", esp, i, (char *) esp);
     }
   esp -= ((int)esp % 4 + 4) % 4;
   argv_ptr[argc] = NULL;
@@ -87,19 +87,19 @@ static void
     {
       esp -= sizeof (char *);
       memcpy (esp, &argv_ptr[i], sizeof (char *));
-      printf ("%p\targv[%d] pointer\t%p\n", esp, i, *(void **)esp);
+      // printf ("%p\targv[%d] pointer\t%p\n", esp, i, *(void **)esp);
     }
   
   memcpy (esp - sizeof(char **), &esp, sizeof (char **));
   esp -= sizeof (char **);
-  printf ("%p\targv pointer\t%p\n", esp, *(void **)esp);
+  // printf ("%p\targv pointer\t%p\n", esp, *(void **)esp);
   esp -= sizeof (int);
   memcpy (esp, &argc, sizeof (int));
-  printf ("%p\targc\t\t%d\n", esp, *(int *)esp);
+  // printf ("%p\targc\t\t%d\n", esp, *(int *)esp);
   esp -= sizeof (int);
   memset (esp, 0, sizeof (int));
-  printf ("%p\treturn address\t%p\n", esp, *(void **)esp);
-  printf ("Stack Size: %d\n", esp - org_esp);
+  // printf ("%p\treturn address\t%p\n", esp, *(void **)esp);
+  // printf ("Stack Size: %d\n", esp - org_esp);
   *esp_ = esp;
 }
 
@@ -156,6 +156,20 @@ process_wait (tid_t child_tid UNUSED)
 {
   while (true);
   return -1;
+}
+
+void
+close_files (struct thread *t)
+{
+  struct list_elem *cur = list_begin (&thread_current ()->open_files);
+  if (cur != list_end (&thread_current ()->open_files)) 
+    {
+      for (; cur != list_end (&thread_current ()->open_files); cur = list_next (cur))
+        {
+          struct open_file *file_data = list_entry (cur, struct open_file, elem);
+          file_close (file_data->file);
+        }
+    }
 }
 
 /* Free the current process's resources. */
@@ -368,6 +382,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
         }
     }
 
+  file_deny_write (file);
   /* Set up stack. */
   if (!setup_stack (esp))
     goto done;
