@@ -127,21 +127,11 @@ static void
 exit (int status)
 {
   pid_t parent_pid = thread_current ()->ppid;
-  struct child_info *child = NULL; 
   struct thread *parent_thread = get_thread_by_id (parent_pid);
   if (parent_thread != NULL)
     {
-      struct list_elem *cur = list_begin (&parent_thread->child_processes);
-      while (cur != list_end (&parent_thread->child_processes))
-        {
-          child = list_entry (cur, struct child_info, elem);
-          if (child->pid == thread_current ()->tid)
-            {
-              child->exit = true;
-              child->exit_status = status;
-            }
-          cur = list_next (&parent_thread->child_processes);
-        }
+      struct child_info *child = get_child_info_by_id (parent_thread->child_processes, thread_current ()->tid);
+      child->exit_status = status;
     }
   thread_exit ();
 }

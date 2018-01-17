@@ -289,6 +289,13 @@ thread_exit (void)
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
+  struct thread *parent_thread = get_thread_by_id (thread_current ()->ppid);
+  if (parent_thread != NULL)
+    {
+      struct child_info *child = get_child_info_by_id (parent_thread->child_processes, thread_current ()->tid);
+      child->is_exited = true;
+    }
+  cond_broadcast (&parent_thread->wait_condvar, &parent_thread->wait_lock);
   process_exit ();
 #endif
 
@@ -468,12 +475,15 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
-  #ifdef USERPROG
+
+#ifdef USERPROG
   list_init (&t->open_files);
-  lock_init (&t->fd_lock);
   list_init (&t->child_processes);
+  lock_init (&t->fd_lock);
+  lock_init (&t->wait_lock);
+  cond_init (&t->wait_condvar);
   t->next_fd = 2;
-  #endif
+#endif
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -605,6 +615,22 @@ get_thread_by_id (tid_t tid)
           if (th->tid == tid)
             return th;
         }
+    }
+    return NULL;
+}
+
+/* Returns child_info struct with given id from given child_processes list, or NULL
+  if not found. */
+struct child_info *
+get_child_info_by_id (struct list child_processes, tid_t tid)
+{
+  struct list_elem *cur = list_begin (&child_processes);
+  while (cur != list_end (&child_processes))
+    {
+      struct child_info *child = list_entry (cur, struct child_info, elem);
+      if (child->pid == tid)
+        return child;
+      cur = list_next (&child_processes);
     }
     return NULL;
 }
