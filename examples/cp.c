@@ -50,6 +50,7 @@ main (int argc, char *argv[])
           return EXIT_FAILURE;
         }
     }
-
+  printf ("Input File Size: %d\n", filesize(in_fd));
+  printf ("Output File Size: %d\n", filesize(out_fd));
   return EXIT_SUCCESS;
 }

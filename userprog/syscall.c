@@ -4,6 +4,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "userprog/pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -21,6 +22,8 @@ static void seek (int, unsigned);
 static unsigned tell (int);
 static void close (int);
  	
+
+static struct lock filesys_lock;
 
 /* Reads a byte at user virtual address UADDR.
    UADDR must be below PHYS_BASE.
@@ -48,22 +51,29 @@ put_user (uint8_t *udst, uint8_t byte)
 }
 
 static bool
-test_userspace (char *ptr)
+is_valid_userspace_string (char *ptr)
 {
   if (ptr == NULL || ptr >= PHYS_BASE)
     return false;
-  for (; ptr != NULL ; ++ptr)
+  for (; *ptr != '\0' ; ++ptr)
     {
-      if (get_user (ptr) == -1)
+      if (ptr >= PHYS_BASE || pagedir_get_page (thread_current ()->pagedir, ptr) == NULL)//get_user (ptr) == -1)
         return false;
     }
   return true;
+}
+
+static bool
+is_valid_userspace_ptr (void *ptr)
+{
+  return !(ptr == NULL || ptr >= PHYS_BASE || pagedir_get_page (thread_current ()->pagedir, ptr) == NULL);
 }
 
 void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init (&filesys_lock);
 }
 
 static void
@@ -166,7 +176,7 @@ static struct open_file
   struct list_elem *cur = list_begin (&thread_current ()->open_files);
   if (cur != list_end (&thread_current ()->open_files)) 
     {
-      for (cur = list_next (cur); cur != list_end (&thread_current ()->open_files); cur = list_next (cur))
+      for (; cur != list_end (&thread_current ()->open_files); cur = list_next (cur))
         {
           struct open_file *file_data = list_entry (cur, struct open_file, elem);
           if (file_data->fd == fd)
@@ -188,13 +198,34 @@ static struct file
 static bool
 create (const char *file, unsigned initial_size)
 {
-  return false;
+  // printf ("File Create Ptr: %p\n", file);
+  if (!is_valid_userspace_string (file))
+    {
+      // TODO: Abort the process here
+      return false;
+    }
+  // printf ("Creating File: %s with size: %d\n", file, initial_size);
+  bool success;
+  lock_acquire (&filesys_lock);
+  success = filesys_create (file, initial_size);
+  lock_release (&filesys_lock);
+  return success;
 }
 
 static bool
 remove (const char *file)
 {
-  return false;
+  if (!is_valid_userspace_string (file))
+    {
+      // TODO: Abort the process here
+      return false;
+    }
+  // TODO: Check for process references on the file.
+  bool success;
+  lock_acquire (&filesys_lock);
+  success = filesys_remove (file);
+  lock_release (&filesys_lock);
+  return success;
 }
 
 static int
@@ -204,21 +235,22 @@ open (const char *file)
   if (file_data == NULL)
     return -1;
   file_data->fd = allocate_fd ();
-  if (test_userspace (file))
+  // printf ("File Open Ptr: %p\n", file);
+  if (!is_valid_userspace_string (file))
     {
-      file_data->file = filesys_open (file);
-      if (file_data->file == NULL)
-        return -1;
-      list_push_back (&thread_current ()->open_files, &file_data->elem);
-    }
-  else
-    {
-
       // TODO: Abort the process here
-
       free (file_data);
       return -1;
     }
+  // printf ("Opening File: %s\n", file);
+
+  lock_acquire (&filesys_lock);
+  file_data->file = filesys_open (file);
+  lock_release (&filesys_lock);
+  
+  if (file_data->file == NULL)
+    return -1;
+  list_push_back (&thread_current ()->open_files, &file_data->elem);
   return file_data->fd;
 }
 
@@ -234,7 +266,13 @@ filesize (int fd)
 static int
 read (int fd, void *buffer, unsigned size)
 {
-  if (fd == 0)
+  if (!is_valid_userspace_ptr (buffer), !is_valid_userspace_ptr (buffer + size - 1))
+    {
+      /* terminate process */
+      return -1;  
+    }
+  // printf ("read fd:%d\n", fd);
+  if (fd == STDIN_FILENO)
     {
       for (int i = 0 ; i < size ; i++)
         *(char *)(buffer + i) = input_getc ();
@@ -243,19 +281,32 @@ read (int fd, void *buffer, unsigned size)
   else
     {
       struct file* file = get_file (fd);
+      // printf ("File: %p\n", file);
+      // printf ("List Length: %d\n", list_size (&thread_current ()->open_files));
       if (file == NULL)
         return -1;
-      return file_read (file, buffer, size);
+      int count;
+      lock_acquire (&filesys_lock);
+      count = file_read (file, buffer, size);
+      lock_release (&filesys_lock);
+      return count;
     }
 }
 
 static int
 write (int fd, const void *buffer, unsigned size)
 {
-  if (fd == 1)
+  if (!is_valid_userspace_ptr (buffer), !is_valid_userspace_ptr (buffer + size - 1))
+    {
+      /* terminate process */
+      return -1;
+    }
+  // printf ("write fd:%d\n", fd);
+  if (fd == STDOUT_FILENO)
     {
       //printf ("%d\t%p\t%d\n", fd, buffer, size);
       putbuf (buffer, size);
+  
       return size;
     }
   else
@@ -263,7 +314,11 @@ write (int fd, const void *buffer, unsigned size)
       struct file* file = get_file (fd);
       if (file == NULL)
         return -1;
-      return file_write (file, buffer, size);
+              int count;
+      lock_acquire (&filesys_lock);
+      count = file_write (file, buffer, size);
+      lock_release (&filesys_lock);
+      return count;
     }
 }
 
@@ -291,7 +346,9 @@ close (int fd)
   struct open_file* file_data = get_open_file (fd);
   if (file_data == NULL || file_data->file == NULL)
     return;
+  lock_acquire (&filesys_lock);
   file_close (file_data->file);
+  lock_release (&filesys_lock);
   list_remove (&file_data->elem);
   free (file_data);
 }

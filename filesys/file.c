@@ -10,9 +10,6 @@ struct file
     struct inode *inode;        /* File's inode. */
     off_t pos;                  /* Current position. */
     bool deny_write;            /* Has file_deny_write() been called? */
-    int reference_count;
-    bool is_removed;
-    struct lock file_lock;
   };
 
 /* Opens a file for the given INODE, of which it takes ownership,
@@ -26,9 +23,6 @@ file_open (struct inode *inode)
     {
       file->inode = inode;
       file->pos = 0;
-      file->is_removed = false;
-      file->reference_count = 0;
-      lock_init (&file->file_lock);
       file->deny_write = false;
       return file;
     }
