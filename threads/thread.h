@@ -19,6 +19,8 @@ enum thread_status
 /* Thread identifier type.
    You can redefine this to whatever type you like. */
 typedef int tid_t;
+/* Process identifier type. */
+typedef int pid_t;
 #define TID_ERROR ((tid_t) -1)          /* Error value for tid_t. */
 
 /* Thread priorities. */
@@ -107,7 +109,7 @@ struct thread
     struct list open_files;                    /* Open Files. */
     int next_fd;
     struct lock fd_lock;
-    int ppid;                           /* Parent process id. */
+    pid_t ppid;                           /* Parent process id. */
     struct list child_processes;        /* List of child processes' necessary info. */
 #endif
 
@@ -118,7 +120,8 @@ struct thread
 struct child_info
   {
     int exit_status;
-    int pid;
+    bool exit;      /* To check whether the exit system call has been invoked or not. */
+    pid_t pid;
     struct list_elem elem;
   };
 
@@ -144,7 +147,6 @@ tid_t thread_tid (void);
 const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
-void thread_return_status (int status);
 void thread_yield (void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
@@ -158,5 +160,7 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+struct thread *get_thread_by_id (tid_t);
 
 #endif /* threads/thread.h */
