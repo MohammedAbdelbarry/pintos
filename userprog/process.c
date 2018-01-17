@@ -60,9 +60,24 @@ process_execute (const char *file_name)
   args->argc = argc;
   /* Create a new thread to execute FILE_NAME. */
   save_ptr = NULL;
+  
+  lock_acquire (&thread_current ()->wait_lock);
   tid = thread_create (strtok_r (file_name, " \t", &save_ptr), PRI_DEFAULT, start_process, args);
+  struct child_info *child = malloc (sizeof (struct child_info));
+  
+  // TODO: Check child allocation.
+
+  // Add child info to child list
+  child->pid = tid;
+  child->exit_status = -1;
+  child->is_exited = false;
+  list_push_back (&thread_current ()->child_processes, &child->elem);
+  
+  lock_release (&thread_current ()->wait_lock);
+
   if (tid == TID_ERROR)
-     palloc_free_page (fn_copy); 
+     palloc_free_page (fn_copy);
+
   return tid;
 }
 
@@ -132,12 +147,17 @@ start_process (void *process_args_)
   palloc_free_page (file_name);
   palloc_free_page (args->argv);
   free (args);
+
+  lock_acquire (&get_thread_by_id (thread_current ()->ppid)->wait_lock);
+  lock_release (&get_thread_by_id (thread_current ()->ppid)->wait_lock);
+  
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
+
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
@@ -175,7 +195,7 @@ process_wait (tid_t child_tid)
   
   // while pid is still alive sleep until child dies.
   lock_acquire (&cur->wait_lock);
-  if (!child->is_exited)
+  if (child != NULL && !child->is_exited)
       cond_wait (&cur->wait_condvar, &cur->wait_lock);
   lock_release (&cur->wait_lock);
   

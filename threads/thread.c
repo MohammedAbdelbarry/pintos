@@ -181,6 +181,9 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+#ifdef USERPROG
+  t->ppid = thread_current ()->tid;
+#endif
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack' 
@@ -607,16 +610,14 @@ get_thread_by_id (tid_t tid)
 {
   struct thread *th = NULL;
   struct list_elem *cur = list_begin (&all_list);
-  if (cur != list_end (&all_list))
+  int i = 0;
+  for (; cur != list_end (&all_list); cur = list_next (cur))
     {
-      for (cur = list_next(cur); cur != list_end (&all_list); cur = list_next(cur))
-        {
-          th = list_entry (cur, struct thread, elem);
-          if (th->tid == tid)
-            return th;
-        }
+       th = list_entry (cur, struct thread, allelem);
+        if (th->tid == tid)
+          return th;
     }
-    return NULL;
+  return NULL;
 }
 
 /* Returns child_info struct with given id from given child_processes list, or NULL
