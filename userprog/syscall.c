@@ -23,6 +23,8 @@ static unsigned tell (int);
 static void close (int);
  	
 
+static struct lock filesys_lock;
+
 /* Reads a byte at user virtual address UADDR.
    UADDR must be below PHYS_BASE.
    Returns the byte value if successful, -1 if a segfault
@@ -71,6 +73,7 @@ void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init (&filesys_lock);
 }
 
 static void
@@ -212,7 +215,11 @@ create (const char *file, unsigned initial_size)
       return false;
     }
   // printf ("Creating File: %s with size: %d\n", file, initial_size);
-  return filesys_create (file, initial_size);
+  bool success;
+  lock_acquire (&filesys_lock);
+  success = filesys_create (file, initial_size);
+  lock_release (&filesys_lock);
+  return success;
 }
 
 static bool
@@ -224,7 +231,11 @@ remove (const char *file)
       return false;
     }
   // TODO: Check for process references on the file.
-  return filesys_remove (file);
+  bool success;
+  lock_acquire (&filesys_lock);
+  success = filesys_remove (file);
+  lock_release (&filesys_lock);
+  return success;
 }
 
 static int
@@ -242,7 +253,11 @@ open (const char *file)
       return -1;
     }
   // printf ("Opening File: %s\n", file);
+
+  lock_acquire (&filesys_lock);
   file_data->file = filesys_open (file);
+  lock_release (&filesys_lock);
+  
   if (file_data->file == NULL)
     return -1;
   list_push_back (&thread_current ()->open_files, &file_data->elem);
@@ -280,7 +295,11 @@ read (int fd, void *buffer, unsigned size)
       // printf ("List Length: %d\n", list_size (&thread_current ()->open_files));
       if (file == NULL)
         return -1;
-      return file_read (file, buffer, size);
+      int count;
+      lock_acquire (&filesys_lock);
+      count = file_read (file, buffer, size);
+      lock_release (&filesys_lock);
+      return count;
     }
 }
 
@@ -305,7 +324,11 @@ write (int fd, const void *buffer, unsigned size)
       struct file* file = get_file (fd);
       if (file == NULL)
         return -1;
-      return file_write (file, buffer, size);
+              int count;
+      lock_acquire (&filesys_lock);
+      count = file_write (file, buffer, size);
+      lock_release (&filesys_lock);
+      return count;
     }
 }
 
@@ -333,7 +356,9 @@ close (int fd)
   struct open_file* file_data = get_open_file (fd);
   if (file_data == NULL || file_data->file == NULL)
     return;
+  lock_acquire (&filesys_lock);
   file_close (file_data->file);
+  lock_release (&filesys_lock);
   list_remove (&file_data->elem);
   free (file_data);
 }
