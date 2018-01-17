@@ -379,6 +379,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       goto done; 
     }
 
+  file_deny_write (file);
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -451,7 +452,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
         }
     }
 
-  file_deny_write (file);
   /* Set up stack. */
   if (!setup_stack (esp))
     goto done;
@@ -461,9 +461,16 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   success = true;
 
- done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  struct open_file *file_data = malloc (sizeof(struct open_file));
+  if (file_data == NULL)
+    return false;
+  file_data->fd = 2;
+  file_data->file = file;
+  list_push_back (&thread_current ()->open_files, &file_data->elem);
+ done:
+  if (!success)
+    file_close (file);
   return success;
 }
 
