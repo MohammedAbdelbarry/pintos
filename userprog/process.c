@@ -248,6 +248,7 @@ process_exit (void)
     {
       next = list_next (child_elem);
       list_remove (child_elem);
+      free (list_entry (child_elem, struct child_info, elem));
       child_elem = next;
     }
 
