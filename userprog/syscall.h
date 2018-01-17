@@ -4,6 +4,8 @@
 /* Process Identifier */
 typedef int pid_t;
 
+void abort ();
+
 void syscall_init (void);
 
 #endif /* userprog/syscall.h */

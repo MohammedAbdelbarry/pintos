@@ -122,7 +122,6 @@ kill (struct intr_frame *f)
 static void
 page_fault (struct intr_frame *f) 
 {
-  debug_backtrace_all ();
   bool not_present;  /* True: not-present page, false: writing r/o page. */
   bool write;        /* True: access was write, false: access was read. */
   bool user;         /* True: access by user, false: access by kernel. */
@@ -135,6 +134,11 @@ page_fault (struct intr_frame *f)
      [IA32-v3a] 5.15 "Interrupt 14--Page Fault Exception
      (#PF)". */
   asm ("movl %%cr2, %0" : "=r" (fault_addr));
+
+  #ifdef USERPROG
+  abort();
+  return;
+  #endif
 
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */

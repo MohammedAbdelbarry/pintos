@@ -27,6 +27,12 @@ static void close (int);
 
 static struct lock filesys_lock;
 
+void
+abort ()
+{
+  exit (-1);
+}
+
 /* Reads a byte at user virtual address UADDR.
    UADDR must be below PHYS_BASE.
    Returns the byte value if successful, -1 if a segfault
