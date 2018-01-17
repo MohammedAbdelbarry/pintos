@@ -90,6 +90,10 @@ static void
 syscall_handler (struct intr_frame *f) 
 {
   uint32_t *esp = f->esp;
+  if (!is_valid_userspace_ptr (esp) || !is_valid_userspace_ptr (esp + 1)
+      || !is_valid_userspace_ptr (esp + 2) || !is_valid_userspace_ptr (esp + 3))
+    exit (-1);
+            
   int syscall_num = *esp;
   switch (syscall_num)
     {
