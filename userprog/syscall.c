@@ -169,9 +169,7 @@ exec (const char *cmd_line)
       exit (-1);
       return -1;
     }
-  lock_acquire (&thread_current ()->exec_lock);
   pid_t id = process_execute (cmd_line);
-  lock_release (&thread_current ()->exec_lock);
   return id;
 }
 
