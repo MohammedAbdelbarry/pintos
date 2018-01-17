@@ -5,6 +5,8 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -143,6 +145,7 @@ exit (int status)
       struct child_info *child = get_child_info_by_id (&parent_thread->child_processes, thread_current ()->tid);
       child->exit_status = status;
     }
+  printf ("%s: exit(%d)\n", thread_current ()->name, status);
   thread_exit ();
 }
 
@@ -202,6 +205,9 @@ create (const char *file, unsigned initial_size)
       return false;
     }
   // printf ("Creating File: %s with size: %d\n", file, initial_size);
+  int len = strlen (file);
+  if (len == 0 || len > FILE_NAME_MAX)
+    return false;
   bool success;
   lock_acquire (&filesys_lock);
   success = filesys_create (file, initial_size);
