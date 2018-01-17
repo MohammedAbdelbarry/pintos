@@ -135,11 +135,6 @@ page_fault (struct intr_frame *f)
      (#PF)". */
   asm ("movl %%cr2, %0" : "=r" (fault_addr));
 
-  #ifdef USERPROG
-  abort();
-  return;
-  #endif
-
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
   intr_enable ();
@@ -155,6 +150,11 @@ page_fault (struct intr_frame *f)
   /* user memory access modifications */
   //f->eip = f->eax;
   //f->eax = 0xffffffff;
+
+  #ifdef USERPROG
+  abort();
+  return;
+  #endif
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
