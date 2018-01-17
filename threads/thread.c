@@ -297,8 +297,8 @@ thread_exit (void)
   while (cur != list_end (&thread_current ()->acquired_locks))
     {
       next = list_next (cur);
-      free (list_entry (cur, struct lock, elem));
       list_remove (cur);
+      free (list_entry (cur, struct lock, elem));
       cur = next;
     }
  
