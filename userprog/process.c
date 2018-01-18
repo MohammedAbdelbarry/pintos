@@ -14,12 +14,14 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static void close_files (struct thread *t);
 
 struct process_args {
   char **argv;
@@ -50,18 +52,24 @@ process_execute (const char *file_name)
   for (token = strtok_r (fn_copy, " \t", &save_ptr); token != NULL;
         token = strtok_r (NULL, " \t", &save_ptr))
     {
-      int len = strlen (token);
       argv[argc] = token;
       argc++;
     }
   argv[argc] = NULL;
   struct process_args *args = malloc (sizeof(struct process_args));
+  if (args == NULL)
+    {
+      return -1;
+    }
   args->argv = argv;
   args->argc = argc;
   /* Create a new thread to execute FILE_NAME. */
   save_ptr = NULL;
   lock_acquire (&thread_current ()->wait_lock);
-  tid = thread_create (strtok_r (file_name, " \t", &save_ptr), PRI_DEFAULT, start_process, args);
+  int name_len = strlen (argv[0]);
+  char *name = malloc ((name_len + 1) * sizeof (char));
+  strlcpy (name, argv[0], name_len + 1);
+  tid = thread_create (name, PRI_DEFAULT, start_process, args);
   if (tid == TID_ERROR)
      palloc_free_page (fn_copy);
   struct child_info *child = malloc (sizeof (struct child_info));
@@ -80,10 +88,10 @@ process_execute (const char *file_name)
 }
 
 static void
-*argument_passing (struct process_args *args, void **esp_)
+argument_passing (struct process_args *args, void **esp_)
 {
   void *esp = *esp_;
-  void *org_esp = esp;
+  // void *org_esp = esp;
   int argc = args->argc;
   char *argv_ptr[argc + 1];
   for (int i = 0 ; i < argc ; i++)
@@ -185,7 +193,6 @@ process_wait (tid_t child_tid)
   // Check that wait on this pid wasn't called before, if so, return -1, else continue.
   
   struct thread *cur = thread_current ();
-  struct list_elem *e;
   struct child_info *child = get_child_info_by_id (&cur->child_processes, child_tid);
   int status;
   if (child == NULL)
@@ -205,7 +212,7 @@ process_wait (tid_t child_tid)
   return status;
 }
 
-void
+static void
 close_files (struct thread *t)
 {
   struct list_elem *cur;

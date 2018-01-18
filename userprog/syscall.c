@@ -1,12 +1,17 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <string.h>
+#include "devices/input.h"
+#include "devices/shutdown.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #include "userprog/pagedir.h"
-#include "filesys/filesys.h"
-#include "filesys/file.h"
+#include "userprog/process.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -25,53 +30,27 @@ static unsigned tell (int);
 static void close (int);
  	
 
-void
-abort ()
+void NO_RETURN
+abort (void)
 {
   exit (-1);
 }
 
-/* Reads a byte at user virtual address UADDR.
-   UADDR must be below PHYS_BASE.
-   Returns the byte value if successful, -1 if a segfault
-   occurred. */
-static int
-get_user (const uint8_t *uaddr)
-{
-  int result;
-  asm ("movl $1f, %0; movzbl %1, %0; 1:"
-       : "=&a" (result) : "m" (*uaddr));
-  return result;
-}
- 
-/* Writes BYTE to user address UDST.
-   UDST must be below PHYS_BASE.
-   Returns true if successful, false if a segfault occurred. */
 static bool
-put_user (uint8_t *udst, uint8_t byte)
-{
-  int error_code;
-  asm ("movl $1f, %0; movb %b2, %1; 1:"
-       : "=&a" (error_code), "=m" (*udst) : "q" (byte));
-  return error_code != -1;
-}
-
-
-static bool
-is_valid_userspace_ptr (void *ptr)
+is_valid_userspace_ptr (const void *ptr)
 {
   return !(ptr == NULL || ptr >= PHYS_BASE || pagedir_get_page (thread_current ()->pagedir, ptr) == NULL);
 }
 
 
 static bool
-is_valid_userspace_string (char *ptr)
+is_valid_userspace_string (const char *ptr)
 {
   if (!is_valid_userspace_ptr (ptr))
     return false;
   for (; *ptr != '\0' ; ++ptr)
     {
-      if (ptr >= PHYS_BASE || pagedir_get_page (thread_current ()->pagedir, ptr) == NULL)//get_user (ptr) == -1)
+      if (ptr >= (char *) PHYS_BASE || pagedir_get_page (thread_current ()->pagedir, ptr) == NULL)//get_user (ptr) == -1)
         return false;
     }
   return true;
@@ -144,7 +123,7 @@ halt (void)
   shutdown_power_off ();
 }
 
-static void
+static void NO_RETURN
 exit (int status)
 {
   pid_t parent_pid = thread_current ()->ppid;
@@ -168,10 +147,7 @@ exec (const char *cmd_line)
       return -1;
     }
   lock_acquire (&thread_current ()->exec_lock);
-  int len = strlen (cmd_line);
-  char *line_copy = malloc ((len + 1) * sizeof (char));
-  strlcpy (line_copy, cmd_line, len + 1);
-  pid_t child_pid = process_execute (line_copy);
+  pid_t child_pid = process_execute (cmd_line);
   cond_wait (&thread_current ()->exec_condvar, &thread_current ()->exec_lock); 
   if (!thread_current ()->child_loaded_successfully)
     return -1;
@@ -182,10 +158,6 @@ exec (const char *cmd_line)
 static int
 wait (pid_t pid)
 {
-  struct child_info *child = get_child_info_by_id (&thread_current ()->child_processes, pid);
-  // printf ("Current Pid: %d\tWait Pid: %d\tChild?: %p\n", thread_current ()->tid, pid, child);
-  // if (child != NULL)
-  //   printf ("Status: %d\tHas Exited?: %d\n", child->exit_status, child->is_exited);
   return process_wait (pid);
 }
 
@@ -300,16 +272,16 @@ filesize (int fd)
 static int
 read (int fd, void *buffer, unsigned size)
 {
-  if (!is_valid_userspace_ptr (buffer), !is_valid_userspace_ptr (buffer + size - 1))
+  if (!is_valid_userspace_ptr (buffer) || !is_valid_userspace_ptr (buffer + size - 1))
     {
       /* terminate process */
-      exit (-1);
-      return -1;  
+      abort ();
+      NOT_REACHED ();  
     }
   // printf ("read fd:%d\n", fd);
   if (fd == STDIN_FILENO)
     {
-      for (int i = 0 ; i < size ; i++)
+      for (unsigned i = 0 ; i < size ; i++)
         *(char *)(buffer + i) = input_getc ();
       return size;
     }
@@ -332,11 +304,11 @@ read (int fd, void *buffer, unsigned size)
 static int
 write (int fd, const void *buffer, unsigned size)
 {
-  if (!is_valid_userspace_ptr (buffer), !is_valid_userspace_ptr (buffer + size - 1))
+  if (!is_valid_userspace_ptr (buffer) || !is_valid_userspace_ptr (buffer + size - 1))
     {
       /* terminate process */
-      exit (-1);
-      return -1;
+      abort ();
+      NOT_REACHED ();
     }
   // printf ("write fd:%d\n", fd);
   if (fd == STDOUT_FILENO)

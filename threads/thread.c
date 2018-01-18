@@ -618,7 +618,6 @@ get_thread_by_id (tid_t tid)
 {
   struct thread *th = NULL;
   struct list_elem *cur = list_begin (&all_list);
-  int i = 0;
   for (; cur != list_end (&all_list); cur = list_next (cur))
     {
        th = list_entry (cur, struct thread, allelem);
