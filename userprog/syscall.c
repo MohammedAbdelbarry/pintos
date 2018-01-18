@@ -168,7 +168,10 @@ exec (const char *cmd_line)
       return -1;
     }
   lock_acquire (&thread_current ()->exec_lock);
-  pid_t child_pid = process_execute (cmd_line);
+  int len = strlen (cmd_line);
+  char *line_copy = malloc ((len + 1) * sizeof (char));
+  strlcpy (line_copy, cmd_line, len + 1);
+  pid_t child_pid = process_execute (line_copy);
   cond_wait (&thread_current ()->exec_condvar, &thread_current ()->exec_lock); 
   if (!thread_current ()->child_loaded_successfully)
     return -1;
