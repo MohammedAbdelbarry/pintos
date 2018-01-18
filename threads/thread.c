@@ -298,7 +298,7 @@ thread_exit (void)
     {
       next = list_next (cur);
       list_remove (cur);
-      free (list_entry (cur, struct lock, elem));
+      // free (list_entry (cur, struct lock, elem));
       cur = next;
     }
  
@@ -489,6 +489,8 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init (&t->child_processes);
   lock_init (&t->fd_lock);
   lock_init (&t->wait_lock);
+  lock_init (&t->exec_lock);
+  cond_init (&t->exec_condvar);
   cond_init (&t->wait_condvar);
   t->next_fd = 3;
 #endif

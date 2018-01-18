@@ -132,7 +132,17 @@ start_process (void *process_args_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  struct thread *parent = get_thread_by_id (thread_current ()->ppid);
+  if (parent != NULL)
+    {
+      lock_acquire (&parent->exec_lock);
+      success = load (file_name, &if_.eip, &if_.esp);
+      parent->child_loaded_successfully = success;
+      cond_signal (&parent->exec_condvar, &parent->exec_lock);
+      lock_release (&parent->exec_lock);
+    }
+  else
+    success = load (file_name, &if_.eip, &if_.esp);
   /* If load failed, quit. */
   if (!success) 
     {
@@ -200,7 +210,7 @@ process_wait (tid_t child_tid)
   // Remove child from list.
   list_remove (&child->elem);
 
-  return child->exit_status; // exit_status should be initialized with -1, so if it didn't exit using exit(), it would return -1.
+  return child->exit_status;
 }
 
 void

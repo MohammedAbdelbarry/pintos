@@ -166,8 +166,13 @@ exec (const char *cmd_line)
       exit (-1);
       return -1;
     }
-  pid_t id = process_execute (cmd_line);
-  return id;
+  lock_acquire (&thread_current ()->exec_lock);
+  pid_t child_pid = process_execute (cmd_line);
+  cond_wait (&thread_current ()->exec_condvar, &thread_current ()->exec_lock); 
+  if (!thread_current ()->child_loaded_successfully)
+    return -1;
+  lock_release (&thread_current ()->exec_lock);
+  return child_pid;
 }
 
 static int
