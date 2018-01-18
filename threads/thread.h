@@ -115,6 +115,7 @@ struct thread
     struct list child_processes;         /* List of child processes' necessary info. */
     struct lock wait_lock;
     struct condition wait_condvar;
+    pid_t wait_pid;
 #endif
 
     /* Owned by thread.c. */
