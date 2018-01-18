@@ -153,6 +153,7 @@ exit (int status)
     {
       struct child_info *child = get_child_info_by_id (&parent_thread->child_processes, thread_current ()->tid);
       child->exit_status = status;
+      child->is_exited = true;
     }
   printf ("%s: exit(%d)\n", thread_current ()->name, status);
   thread_exit ();
@@ -178,6 +179,10 @@ exec (const char *cmd_line)
 static int
 wait (pid_t pid)
 {
+  struct child_info *child = get_child_info_by_id (&thread_current ()->child_processes, pid);
+  // printf ("Current Pid: %d\tWait Pid: %d\tChild?: %p\n", thread_current ()->tid, pid, child);
+  // if (child != NULL)
+  //   printf ("Status: %d\tHas Exited?: %d\n", child->exit_status, child->is_exited);
   return process_wait (pid);
 }
 
@@ -308,6 +313,7 @@ read (int fd, void *buffer, unsigned size)
   else
     {
       struct file* file = get_file (fd);
+      // printf ("Thread: %d\tBuf: %p\tfd: %d\tfile: %p\n", thread_current ()->tid, buffer, fd, file);
       // printf ("File: %p\n", file);
       // printf ("List Length: %d\n", list_size (&thread_current ()->open_files));
       if (file == NULL)

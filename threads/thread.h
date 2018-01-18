@@ -118,6 +118,7 @@ struct thread
     struct lock exec_lock;
     struct condition exec_condvar;
     bool child_loaded_successfully;
+    pid_t wait_pid;
 #endif
 
     /* Owned by thread.c. */

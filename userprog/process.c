@@ -186,31 +186,23 @@ process_wait (tid_t child_tid)
   
   struct thread *cur = thread_current ();
   struct list_elem *e;
-  struct child_info *child;
-  bool found = false;
-  for (e = list_begin (&cur->child_processes); e != list_end (&cur->child_processes);
-       e = list_next (e))
-    {
-      child = list_entry (e, struct child_info, elem);
-      if (child->pid == child_tid)
-        {
-          found = true;
-          break;
-        }
-    }
-  if (!found)
+  struct child_info *child = get_child_info_by_id (&cur->child_processes, child_tid);
+  int status;
+  if (child == NULL)
     return -1;
   
   // while pid is still alive sleep until child dies.
   lock_acquire (&cur->wait_lock);
-  if (child != NULL && !child->is_exited)
+  cur->wait_pid = child_tid;
+  if (!child->is_exited)
       cond_wait (&cur->wait_condvar, &cur->wait_lock);
+  list_remove (&child->elem);
+  cur->wait_pid = -1;
+  status = child->exit_status;
   lock_release (&cur->wait_lock);
   
-  // Remove child from list.
-  list_remove (&child->elem);
-
-  return child->exit_status;
+  free (child);
+  return status;
 }
 
 void
@@ -269,9 +261,8 @@ process_exit (void)
   if (parent_thread != NULL)
     {
       lock_acquire (&parent_thread->wait_lock);
-      struct child_info *child = get_child_info_by_id (&parent_thread->child_processes, thread_current ()->tid);
-      child->is_exited = true;
-      cond_broadcast (&parent_thread->wait_condvar, &parent_thread->wait_lock);
+      if (thread_current ()->tid == parent_thread->wait_pid)
+        cond_signal (&parent_thread->wait_condvar, &parent_thread->wait_lock);
       lock_release (&parent_thread->wait_lock);
     }
 }
