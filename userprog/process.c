@@ -176,8 +176,8 @@ process_wait (tid_t child_tid)
   
   struct thread *cur = thread_current ();
   struct list_elem *e;
-  struct child_info *child;
-  child = get_child_info_by_id (&cur->child_processes, child_tid);
+  struct child_info *child = get_child_info_by_id (&cur->child_processes, child_tid);
+  int status;
   if (child == NULL)
     return -1;
   
@@ -188,11 +188,12 @@ process_wait (tid_t child_tid)
       cond_wait (&cur->wait_condvar, &cur->wait_lock);
   list_remove (&child->elem);
   cur->wait_pid = -1;
+  status = child->exit_status;
   lock_release (&cur->wait_lock);
   
-  // Remove child from list.
+  free (child);
 
-  return child->exit_status; // exit_status should be initialized with -1, so if it didn't exit using exit(), it would return -1.
+  return status; // exit_status should be initialized with -1, so if it didn't exit using exit(), it would return -1.
 }
 
 void
