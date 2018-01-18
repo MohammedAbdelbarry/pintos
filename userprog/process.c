@@ -208,14 +208,13 @@ process_wait (tid_t child_tid)
 void
 close_files (struct thread *t)
 {
-  struct list_elem *cur = list_begin (&thread_current ()->open_files);
-  if (cur != list_end (&thread_current ()->open_files)) 
+  struct list_elem *cur;
+  while (!list_empty (&t->open_files))
     {
-      for (; cur != list_end (&thread_current ()->open_files); cur = list_next (cur))
-        {
-          struct open_file *file_data = list_entry (cur, struct open_file, elem);
-          file_close (file_data->file);
-        }
+      cur = list_pop_back (&t->open_files);
+      struct open_file *file_data = list_entry (cur, struct open_file, elem);
+      file_close (file_data->file);
+      free (file_data);
     }
 }
 
@@ -244,18 +243,18 @@ process_exit (void)
     }
 
   /* Remove child processes of the exiting process. */
-  struct list_elem *child_elem = list_begin (&cur->child_processes);
-  struct list_elem *next = NULL;
-  while (child_elem != list_end (&cur->child_processes))
+  enum intr_level old_level = intr_disable (); 
+  
+  struct list_elem *child_elem;
+  while (!list_empty (&cur->child_processes))
     {
-      next = list_next (child_elem);
-      list_remove (child_elem);
+      child_elem = list_pop_front (&cur->child_processes);
       free (list_entry (child_elem, struct child_info, elem));
-      child_elem = next;
     }
-
   /* Close open files by the exiting process. */
   close_files (cur);  
+  
+  intr_set_level (old_level);
 
   struct thread *parent_thread = get_thread_by_id (thread_current ()->ppid);
   if (parent_thread != NULL)
