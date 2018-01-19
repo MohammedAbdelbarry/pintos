@@ -61,7 +61,7 @@ is_valid_userspace_string (const char *ptr)
 {
   if (!is_valid_userspace_ptr (ptr))
     return false;
-  for (; *ptr != '\0' ; ++ptr)
+  for (; get_user ((uint8_t *) ptr) != '\0' ; ++ptr)
     {
       if (ptr >= (char *) PHYS_BASE || get_user ((uint8_t *) ptr) == -1)//get_user (ptr) == -1)
         return false;
