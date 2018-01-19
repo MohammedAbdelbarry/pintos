@@ -36,10 +36,23 @@ abort (void)
   exit (-1);
 }
 
+/* Reads a byte at user virtual address UADDR.
+   UADDR must be below PHYS_BASE.
+   Returns the byte value if successful, -1 if a segfault
+   occurred. */
+static int
+get_user (const uint8_t *uaddr)
+{
+  int result;
+  asm ("movl $1f, %0; movzbl %1, %0; 1:"
+       : "=&a" (result) : "m" (*uaddr));
+  return result;
+}
+
 static bool
 is_valid_userspace_ptr (const void *ptr)
 {
-  return !(ptr == NULL || ptr >= PHYS_BASE || pagedir_get_page (thread_current ()->pagedir, ptr) == NULL);
+  return !(ptr >= PHYS_BASE || get_user (ptr) == -1);
 }
 
 
@@ -50,7 +63,7 @@ is_valid_userspace_string (const char *ptr)
     return false;
   for (; *ptr != '\0' ; ++ptr)
     {
-      if (ptr >= (char *) PHYS_BASE || pagedir_get_page (thread_current ()->pagedir, ptr) == NULL)//get_user (ptr) == -1)
+      if (ptr >= (char *) PHYS_BASE || get_user (ptr) == -1)//get_user (ptr) == -1)
         return false;
     }
   return true;
@@ -243,7 +256,6 @@ open (const char *file)
   if (file_data == NULL)
     return -1;
   file_data->fd = allocate_fd ();
-  // printf ("File Open Ptr: %p\n", file);
   if (!is_valid_userspace_string (file))
     {
       // TODO: Abort the process here
@@ -251,8 +263,6 @@ open (const char *file)
       free (file_data);
       return -1;
     }
-  // printf ("Opening File: %s\n", file);
-
   lock_acquire (&filesys_lock);
   file_data->file = filesys_open (file);
   lock_release (&filesys_lock);
@@ -281,7 +291,6 @@ read (int fd, void *buffer, unsigned size)
       abort ();
       NOT_REACHED ();  
     }
-  // printf ("read fd:%d\n", fd);
   if (fd == STDIN_FILENO)
     {
       for (unsigned i = 0 ; i < size ; i++)
