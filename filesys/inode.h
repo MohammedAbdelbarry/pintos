@@ -19,8 +19,11 @@ off_t inode_write_at (struct inode *, const void *, off_t size, off_t offset);
 void inode_deny_write (struct inode *);
 void inode_allow_write (struct inode *);
 off_t inode_length (const struct inode *);
+/* Increments the executable count of this inode. */
 void inode_set_executable (struct inode* inode);
+/* Decrements the executable count of this inode. */
 void inode_clear_executable (struct inode* inode);
+/* Checks if the inode is open as an executable. */
 bool inode_is_executable (struct inode* inode);
 
 

@@ -26,4 +26,8 @@ void file_seek (struct file *, off_t);
 off_t file_tell (struct file *);
 off_t file_length (struct file *);
 
+/* Read-only executable. */
+void file_set_executable (struct file* file);
+void file_clear_executable (struct file* file);
+
 #endif /* filesys/file.h */

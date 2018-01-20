@@ -1,11 +1,9 @@
 #ifndef USERPROG_SYSCALL_H
 #define USERPROG_SYSCALL_H
 
-/* Process Identifier */
-typedef int pid_t;
-
+/* Aborts the current running process with status -1. */
 void abort (void);
-
+/* Inits the syscall handler. */
 void syscall_init (void);
 
 #endif /* userprog/syscall.h */

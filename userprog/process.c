@@ -68,10 +68,7 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   save_ptr = NULL;
   lock_acquire (&thread_current ()->wait_lock);
-  int name_len = strlen (argv[0]);
-  char *name = malloc ((name_len + 1) * sizeof (char));
-  strlcpy (name, argv[0], name_len + 1);
-  tid = thread_create (name, PRI_DEFAULT, start_process, args);
+  tid = thread_create (argv[0], PRI_DEFAULT, start_process, args);
   if (tid == TID_ERROR)
      palloc_free_page (fn_copy);
   struct child_info *child = malloc (sizeof (struct child_info));
@@ -90,6 +87,10 @@ process_execute (const char *file_name)
   return tid;
 }
 
+/**
+ * Pushes the arguments of the process to the stack.
+ * Returns false if the stack overflowed. 
+ */
 static bool
 argument_passing (struct process_args *args, void **esp_)
 {
@@ -274,11 +275,11 @@ process_exit (void)
       child_elem = list_pop_front (&cur->child_processes);
       free (list_entry (child_elem, struct child_info, elem));
     }
-  /* Close open files by the exiting process. */
   
   intr_set_level (old_level);
   
   lock_acquire (&filesys_lock);
+  /* Close open files owned by the exiting process. */
   close_files (cur);  
   if (cur->executable_file != NULL)
     {

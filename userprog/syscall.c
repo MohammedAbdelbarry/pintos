@@ -28,7 +28,6 @@ static int write (int, const void *, unsigned);
 static void seek (int, unsigned);
 static unsigned tell (int);
 static void close (int);
- 	
 
 void NO_RETURN
 abort (void)
@@ -49,13 +48,16 @@ get_user (const uint8_t *uaddr)
   return result;
 }
 
+/* Checks if ptr is a valid user space
+   pointer. */
 static bool
 is_valid_userspace_ptr (const void *ptr)
 {
   return !(ptr >= PHYS_BASE || get_user (ptr) == -1);
 }
 
-
+/* Checks if the given string is a valid
+   userspace string. */
 static bool
 is_valid_userspace_string (const char *ptr)
 {
@@ -75,6 +77,8 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
+/* Gets the syscall number from the stack
+   and calls the appropriate handler function. */
 static void
 syscall_handler (struct intr_frame *f) 
 {
@@ -130,12 +134,14 @@ syscall_handler (struct intr_frame *f)
     }
 }
 
+/* Implements the halt system call. */
 static void
 halt (void)
 {
   shutdown_power_off ();
 }
 
+/* Implements the exit system call. */
 static void NO_RETURN
 exit (int status)
 {
@@ -155,12 +161,13 @@ exit (int status)
   thread_exit ();
 }
 
+/* Implements the exec system call. */
 static pid_t
 exec (const char *cmd_line)
 {
   if (!is_valid_userspace_string (cmd_line))
     {
-      exit (-1);
+      abort ();
       return -1;
     }
   lock_acquire (&thread_current ()->exec_lock);
@@ -175,18 +182,21 @@ exec (const char *cmd_line)
   return child_pid;
 }
 
+/* Implements the wait system call. */
 static int
 wait (pid_t pid)
 {
   return process_wait (pid);
 }
 
+/* Allocates a new file descriptor. */
 static int
 allocate_fd (void) 
 {
   return thread_current ()->next_fd++;
 }
 
+/* Gets the struct open_file pointed to by fd. */
 static struct open_file
 *get_open_file (int fd)
 {
@@ -200,6 +210,7 @@ static struct open_file
   return NULL;
 }
 
+/* Gets the struct file pointed to by fd. */
 static struct file
 *get_file (int fd)
 {
@@ -209,6 +220,7 @@ static struct file
   return file_data->file;
 }
 
+/* Implements the create system call. */
 static bool
 create (const char *file, unsigned initial_size)
 {
@@ -228,6 +240,7 @@ create (const char *file, unsigned initial_size)
   return success;
 }
 
+/* Implements the remove system call. */
 static bool
 remove (const char *file)
 {
@@ -243,6 +256,7 @@ remove (const char *file)
   return success;
 }
 
+/* Implements the open system call. */
 static int
 open (const char *file)
 {
@@ -267,6 +281,7 @@ open (const char *file)
   return file_data->fd;
 }
 
+/* Implements the filesize system call. */
 static int
 filesize (int fd)
 {
@@ -276,6 +291,7 @@ filesize (int fd)
   return file_length (file);
 }
 
+/* Implements the read system call. */
 static int
 read (int fd, void *buffer, unsigned size)
 {
@@ -306,6 +322,7 @@ read (int fd, void *buffer, unsigned size)
     }
 }
 
+/* Implements the write system call. */
 static int
 write (int fd, const void *buffer, unsigned size)
 {
@@ -335,6 +352,7 @@ write (int fd, const void *buffer, unsigned size)
     }
 }
 
+/* Implements the seek system call. */
 static void
 seek (int fd, unsigned position)
 {
@@ -353,6 +371,7 @@ tell (int fd)
   return file_tell (file);
 }
 
+/* Implements the close system call. */
 static void
 close (int fd)
 {
