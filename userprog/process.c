@@ -286,13 +286,6 @@ process_exit (void)
       file_close (cur->executable_file);
     }
   lock_release (&filesys_lock);
-  struct thread *parent_thread = get_thread_by_id (thread_current ()->ppid);
-  if (parent_thread != NULL)
-    {
-      lock_acquire (&parent_thread->wait_lock);
-      
-      lock_release (&parent_thread->wait_lock);
-    }
 }
 
 /* Sets up the CPU for running user code in the current
