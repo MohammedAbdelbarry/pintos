@@ -87,22 +87,27 @@ process_execute (const char *file_name)
   return tid;
 }
 
-static void
+static bool
 argument_passing (struct process_args *args, void **esp_)
 {
   void *esp = *esp_;
-  // void *org_esp = esp;
+  void *org_esp = esp;
   int argc = args->argc;
   char *argv_ptr[argc + 1];
   for (int i = 0 ; i < argc ; i++)
     {
       int len = strlen (args->argv[i]);
+      if (org_esp - esp > PGSIZE - (len + 1) * sizeof (char))
+        return false;
       esp -= (len + 1) * sizeof (char);
       strlcpy (esp, args->argv[i], len + 1);      
       argv_ptr[i] = esp;
       // printf ("%p\targv[%d] data\t%s\n", esp, i, (char *) esp);
     }
   esp -= ((int)esp % 4 + 4) % 4;
+  int remaining_stack_size = (argc + 1) * sizeof (char *) + 2 * sizeof (int) + sizeof (char **);
+  if (org_esp - esp > PGSIZE - remaining_stack_size)
+        return false;
   argv_ptr[argc] = NULL;
   for (int i = argc ; i >= 0 ; i--)
     {
@@ -122,6 +127,7 @@ argument_passing (struct process_args *args, void **esp_)
   // printf ("%p\treturn address\t%p\n", esp, *(void **)esp);
   // printf ("Stack Size: %d\n", esp - org_esp);
   *esp_ = esp;
+  return true;
 }
 
 /* A thread function that loads a user process and starts it
@@ -145,24 +151,27 @@ start_process (void *process_args_)
     {
       lock_acquire (&parent->exec_lock);
       success = load (file_name, &if_.eip, &if_.esp);
+      
+      /* Argument Passing and Stackoverflow check */
+      success = success && argument_passing (args, &if_.esp);
+      
       parent->child_loaded_successfully = success;
       cond_signal (&parent->exec_condvar, &parent->exec_lock);
       lock_release (&parent->exec_lock);
     }
   else
-    success = load (file_name, &if_.eip, &if_.esp);
-  /* If load failed, quit. */
-  if (!success) 
     {
-      palloc_free_page (file_name);
-      free (args);
-      thread_exit ();
+      success = load (file_name, &if_.eip, &if_.esp);
+      success = success && argument_passing (args, &if_.esp);
     }
-  /* Argument Passing */
-  argument_passing (args, &if_.esp);
+  
   palloc_free_page (file_name);
   palloc_free_page (args->argv);
   free (args);
+
+  /* If load failed, quit. */
+  if (!success) 
+    thread_exit ();
 
   lock_acquire (&get_thread_by_id (thread_current ()->ppid)->wait_lock);
   lock_release (&get_thread_by_id (thread_current ()->ppid)->wait_lock);
