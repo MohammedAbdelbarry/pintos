@@ -259,10 +259,17 @@ process_exit (void)
       free (list_entry (child_elem, struct child_info, elem));
     }
   /* Close open files by the exiting process. */
-  close_files (cur);  
   
   intr_set_level (old_level);
-
+  
+  lock_acquire (&filesys_lock);
+  close_files (cur);  
+  if (cur->executable_file != NULL)
+    {
+      file_clear_executable (cur->executable_file);
+      file_close (cur->executable_file);
+    }
+  lock_release (&filesys_lock);
   struct thread *parent_thread = get_thread_by_id (thread_current ()->ppid);
   if (parent_thread != NULL)
     {
@@ -469,15 +476,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
   success = true;
 
   /* We arrive here whether the load is successful or not. */
-  struct open_file *file_data = malloc (sizeof(struct open_file));
-  if (file_data == NULL)
-    return false;
-  file_data->fd = 2;
-  file_data->file = file;
-  list_push_back (&t->open_files, &file_data->elem);
  done:
   if (!success)
     file_close (file);
+  else
+    {
+      file_set_executable (file);
+      t->executable_file = file;
+    }
   lock_release (&filesys_lock);
   return success;
 }

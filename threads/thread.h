@@ -110,6 +110,7 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
     struct list open_files;             /* Open Files. */
     int next_fd;
+    struct file *executable_file;
     struct lock fd_lock;
     pid_t ppid;                          /* Parent process id. */
     struct list child_processes;         /* List of child processes' necessary info. */

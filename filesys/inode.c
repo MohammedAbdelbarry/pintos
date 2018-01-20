@@ -37,6 +37,7 @@ struct inode
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
     struct inode_disk data;             /* Inode content. */
+    int executable_cnt;                   /* Number of running copies of the executable process? */
   };
 
 /* Returns the block device sector that contains byte offset POS
@@ -137,6 +138,7 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
+  inode->executable_cnt = 0;
   block_read (fs_device, inode->sector, &inode->data);
   return inode;
 }
@@ -342,4 +344,22 @@ off_t
 inode_length (const struct inode *inode)
 {
   return inode->data.length;
+}
+
+void
+inode_set_executable (struct inode* inode)
+{
+  inode->executable_cnt++;
+}
+
+void
+inode_clear_executable (struct inode* inode)
+{
+  inode->executable_cnt--;  
+}
+
+bool
+inode_is_executable (struct inode* inode)
+{
+  return inode->executable_cnt > 0;
 }

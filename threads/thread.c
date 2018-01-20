@@ -492,8 +492,9 @@ init_thread (struct thread *t, const char *name, int priority)
   lock_init (&t->exec_lock);
   cond_init (&t->exec_condvar);
   cond_init (&t->wait_condvar);
-  t->next_fd = 3;
+  t->next_fd = 2;
   t->wait_pid = -1;
+  t->executable_file = NULL;
 #endif
 }
 

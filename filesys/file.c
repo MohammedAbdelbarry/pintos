@@ -24,6 +24,8 @@ file_open (struct inode *inode)
       file->inode = inode;
       file->pos = 0;
       file->deny_write = false;
+      if (inode_is_executable (inode))
+        file_deny_write (file);
       return file;
     }
   else
@@ -166,4 +168,18 @@ file_tell (struct file *file)
 {
   ASSERT (file != NULL);
   return file->pos;
+}
+
+void
+file_set_executable (struct file* file)
+{
+  ASSERT (file != NULL);
+  inode_set_executable (file->inode);
+}
+
+void
+file_clear_executable (struct file* file)
+{
+  ASSERT (file != NULL);
+  inode_clear_executable (file->inode);
 }
