@@ -23,10 +23,12 @@ static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 static void close_files (struct thread *t);
 
-struct process_args {
-  char **argv;
-  int argc;
-};
+/* The arguments that will be pushed to the stack */
+struct process_args
+  {
+    char **argv;
+    int argc;
+  };
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -74,8 +76,9 @@ process_execute (const char *file_name)
      palloc_free_page (fn_copy);
   struct child_info *child = malloc (sizeof (struct child_info));
   
-  // TODO: Check child allocation.
-
+  if (child == NULL)
+    return -1;
+  
   // Add child info to child list
   child->pid = tid;
   child->exit_status = -1;
@@ -147,6 +150,7 @@ start_process (void *process_args_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   struct thread *parent = get_thread_by_id (thread_current ()->ppid);
+  /* If the thread has a parent (is not init) */
   if (parent != NULL)
     {
       lock_acquire (&parent->exec_lock);
@@ -154,7 +158,7 @@ start_process (void *process_args_)
       
       /* Argument Passing and Stackoverflow check */
       success = success && argument_passing (args, &if_.esp);
-      
+      /* Inform Parent of the child load status */
       parent->child_loaded_successfully = success;
       cond_signal (&parent->exec_condvar, &parent->exec_lock);
       lock_release (&parent->exec_lock);
@@ -173,8 +177,11 @@ start_process (void *process_args_)
   if (!success) 
     thread_exit ();
 
-  lock_acquire (&get_thread_by_id (thread_current ()->ppid)->wait_lock);
-  lock_release (&get_thread_by_id (thread_current ()->ppid)->wait_lock);
+  if (parent != NULL)
+    {
+      lock_acquire (&parent->wait_lock);
+      lock_release (&parent->wait_lock);
+    }
   
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -283,8 +290,7 @@ process_exit (void)
   if (parent_thread != NULL)
     {
       lock_acquire (&parent_thread->wait_lock);
-      if (thread_current ()->tid == parent_thread->wait_pid)
-        cond_signal (&parent_thread->wait_condvar, &parent_thread->wait_lock);
+      
       lock_release (&parent_thread->wait_lock);
     }
 }

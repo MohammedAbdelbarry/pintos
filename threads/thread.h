@@ -27,12 +27,13 @@ typedef int pid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
-
-struct open_file {
-  int fd;
-  struct file* file;
-  struct list_elem elem;
-};
+/* A struct representing an open file (<fd, struct file*> pair) */
+struct open_file
+  {
+    int fd;                         /* The file descriptor of the file */
+    struct file* file;              /* The corresponding struct file */
+    struct list_elem elem;          /* An elem for inserting in the list of open files */
+  };
 
 /* A kernel thread or user process.
 
@@ -108,30 +109,30 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    struct list open_files;             /* Open Files. */
-    int next_fd;
-    struct file *executable_file;
-    struct lock fd_lock;
-    pid_t ppid;                          /* Parent process id. */
-    struct list child_processes;         /* List of child processes' necessary info. */
-    struct lock wait_lock;
-    struct condition wait_condvar;
-    struct lock exec_lock;
-    struct condition exec_condvar;
-    bool child_loaded_successfully;
-    pid_t wait_pid;
+    struct list open_files;             /* List of open files. */
+    int next_fd;                        /* The fd of the next file that will be opened. */
+    struct file *executable_file;       /* A pointer to the executable file of this process. */
+    pid_t ppid;                         /* Parent process id. */
+    struct list child_processes;        /* List of child processes' necessary info. */
+    struct lock wait_lock;              /* Lock for the child_info of the child this process is waiting on. */
+    struct condition wait_condvar;      /* Condvar for waking the process when the child has exited. */
+    pid_t wait_pid;                     /* The pid of the child this process is waiting on. */
+    struct lock exec_lock;              /* A lock for synchronizing the status of exec. */
+    struct condition exec_condvar;      /* A condvar for waking the parent when the child has been loaded. */
+    bool child_loaded_successfully;     /* A boolean indicitaing whether or not the child was loaded successfully. */
 #endif
 
     /* Owned by thread.c. */
     unsigned magic;                      /* Detects stack overflow. */
   };
 
+/* A struct containing the status of the child for use in parent */
 struct child_info
   {
-    int exit_status;
+    int exit_status;                           /* The exit status of the child. */
     bool is_exited;                            /* To check whether the exit system call has been invoked or not. */
-    pid_t pid;
-    struct list_elem elem;
+    pid_t pid;                                 /* The pid of the child process. */
+    struct list_elem elem;                     /* Elem to insert in the parent's list of children. */
   };
 
 /* If false (default), use round-robin scheduler.

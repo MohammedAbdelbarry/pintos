@@ -143,9 +143,13 @@ exit (int status)
   struct thread *parent_thread = get_thread_by_id (parent_pid);
   if (parent_thread != NULL)
     {
+      lock_acquire (&parent_thread->wait_lock);
       struct child_info *child = get_child_info_by_id (&parent_thread->child_processes, thread_current ()->tid);
       child->exit_status = status;
       child->is_exited = true;
+      if (thread_current ()->tid == parent_thread->wait_pid)
+        cond_signal (&parent_thread->wait_condvar, &parent_thread->wait_lock);
+      lock_release (&parent_thread->wait_lock);
     }
   printf ("%s: exit(%d)\n", thread_current ()->name, status);
   thread_exit ();
@@ -180,13 +184,7 @@ wait (pid_t pid)
 static int
 allocate_fd (void) 
 {
-  int fd;
-
-  lock_acquire (&thread_current ()->fd_lock);
-  fd = thread_current ()->next_fd++;
-  lock_release (&thread_current ()->fd_lock);
-
-  return fd;
+  return thread_current ()->next_fd++;
 }
 
 static struct open_file
@@ -214,14 +212,12 @@ static struct file
 static bool
 create (const char *file, unsigned initial_size)
 {
-  // printf ("File Create Ptr: %p\n", file);
   if (!is_valid_userspace_string (file))
     {
-      // TODO: Abort the process here
-      exit (-1);
+      abort ();
       return false;
     }
-  // printf ("Creating File: %s with size: %d\n", file, initial_size);
+  
   int len = strlen (file);
   if (len == 0 || len > FILE_NAME_MAX)
     return false;
@@ -237,11 +233,9 @@ remove (const char *file)
 {
   if (!is_valid_userspace_string (file))
     {
-      // TODO: Abort the process here
-      exit (-1);
+      abort ();
       return false;
     }
-  // TODO: Check for process references on the file.
   bool success;
   lock_acquire (&filesys_lock);
   success = filesys_remove (file);
@@ -258,15 +252,15 @@ open (const char *file)
   file_data->fd = allocate_fd ();
   if (!is_valid_userspace_string (file))
     {
-      // TODO: Abort the process here
-      exit (-1);
+      abort ();
       free (file_data);
       return -1;
     }
+
   lock_acquire (&filesys_lock);
   file_data->file = filesys_open (file);
   lock_release (&filesys_lock);
-  
+
   if (file_data->file == NULL)
     return -1;
   list_push_back (&thread_current ()->open_files, &file_data->elem);
@@ -285,11 +279,13 @@ filesize (int fd)
 static int
 read (int fd, void *buffer, unsigned size)
 {
-  if (!is_valid_userspace_ptr (buffer) || !is_valid_userspace_ptr (buffer + size - 1))
+  if (!is_valid_userspace_ptr (buffer)
+      || !is_valid_userspace_ptr (buffer + size - 1)
+      || fd == STDOUT_FILENO)
     {
       /* terminate process */
       abort ();
-      NOT_REACHED ();  
+      return -1;  
     }
   if (fd == STDIN_FILENO)
     {
@@ -300,9 +296,6 @@ read (int fd, void *buffer, unsigned size)
   else
     {
       struct file* file = get_file (fd);
-      // printf ("Thread: %d\tBuf: %p\tfd: %d\tfile: %p\n", thread_current ()->tid, buffer, fd, file);
-      // printf ("File: %p\n", file);
-      // printf ("List Length: %d\n", list_size (&thread_current ()->open_files));
       if (file == NULL)
         return -1;
       int count;
@@ -316,18 +309,17 @@ read (int fd, void *buffer, unsigned size)
 static int
 write (int fd, const void *buffer, unsigned size)
 {
-  if (!is_valid_userspace_ptr (buffer) || !is_valid_userspace_ptr (buffer + size - 1))
+  if (!is_valid_userspace_ptr (buffer)
+      || !is_valid_userspace_ptr (buffer + size - 1)
+      || fd == STDIN_FILENO)
     {
       /* terminate process */
       abort ();
-      NOT_REACHED ();
+      return -1;
     }
-  // printf ("write fd:%d\n", fd);
   if (fd == STDOUT_FILENO)
     {
-      //printf ("%d\t%p\t%d\n", fd, buffer, size);
       putbuf (buffer, size);
-  
       return size;
     }
   else
