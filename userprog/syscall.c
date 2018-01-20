@@ -77,17 +77,47 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
+bool
+check_stack (int syscall_num, uint32_t *esp)
+{
+  switch (syscall_num)
+    {
+      case SYS_HALT:
+        return true;
+      case SYS_EXIT:
+      case SYS_EXEC:
+      case SYS_WAIT:
+      case SYS_REMOVE:
+      case SYS_OPEN:
+      case SYS_FILESIZE:
+      case SYS_TELL:
+      case SYS_CLOSE:
+        return is_valid_userspace_ptr (esp);
+      case SYS_CREATE:
+      case SYS_SEEK:
+        return is_valid_userspace_ptr (esp) && is_valid_userspace_ptr (esp + 1);
+      case SYS_READ:
+      case SYS_WRITE:
+        return is_valid_userspace_ptr (esp)
+        && is_valid_userspace_ptr (esp + 1)
+        && is_valid_userspace_ptr (esp + 2);
+      default:
+        return false;
+    }
+}
+
 /* Gets the syscall number from the stack
    and calls the appropriate handler function. */
 static void
 syscall_handler (struct intr_frame *f) 
 {
   uint32_t *esp = f->esp;
-  if (!is_valid_userspace_ptr (esp) || !is_valid_userspace_ptr (esp + 1)
-      || !is_valid_userspace_ptr (esp + 2) || !is_valid_userspace_ptr (esp + 3))
-    exit (-1);
+  if (!is_valid_userspace_ptr (esp))
+    abort ();
             
   int syscall_num = *esp;
+  if (!check_stack (syscall_num, esp + 1))
+    abort ();
   switch (syscall_num)
     {
       case SYS_HALT:
@@ -153,8 +183,6 @@ exit (int status)
       struct child_info *child = get_child_info_by_id (&parent_thread->child_processes, thread_current ()->tid);
       child->exit_status = status;
       child->is_exited = true;
-      if (thread_current ()->tid == parent_thread->wait_pid)
-        cond_signal (&parent_thread->wait_condvar, &parent_thread->wait_lock);
       lock_release (&parent_thread->wait_lock);
     }
   printf ("%s: exit(%d)\n", thread_current ()->name, status);
